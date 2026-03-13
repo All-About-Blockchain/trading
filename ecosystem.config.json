@@ -1,0 +1,23 @@
+{
+  "apps": [
+    {
+      "name": "hl-dashboard",
+      "script": "dist/dashboard-server.js",
+      "cwd": "/home/biest/hyperliquid-trading",
+      "interpreter": "none",
+      "env": {
+        "NODE_ENV": "production",
+        "DASHBOARD_USER": "admin",
+        "DASHBOARD_PASS": "Trading123",
+        "DASHBOARD_PORT": "3001"
+      },
+      "watch": false,
+      "error_file": "/home/biest/logs/hl-dashboard-error.log",
+      "out_file": "/home/biest/logs/hl-dashboard-out.log",
+      "time": true,
+      "autorestart": true,
+      "max_restarts": 10,
+      "min_uptime": "10s"
+    }
+  ]
+}
