@@ -7,6 +7,7 @@ import { config } from './config';
 import { hlClient } from './utils/hyperliquid';
 import { agentFactory } from './agents';
 import { logger } from './utils/logger';
+import { riskManager } from './utils/riskManager';
 import { Portfolio, MarketData, Signal } from './types';
 
 class TradingSystem {
@@ -159,13 +160,27 @@ class TradingSystem {
    * Execute a trading signal
    */
   private async executeSignal(signal: Signal): Promise<void> {
-    if (!config.agents.riskCheckEnabled) {
-      await this.placeOrderFromSignal(signal);
-      return;
+    // Get current portfolio for risk checks
+    const portfolio = await this.getPortfolio();
+    
+    if (config.agents.riskCheckEnabled) {
+      // Run risk checks before execution
+      const riskCheck = riskManager.checkSignal(signal, portfolio);
+      
+      if (!riskCheck.passed) {
+        logger.warn(`Signal blocked by risk checks: ${signal.asset} ${signal.action}`, {
+          violations: riskCheck.violations,
+        });
+        return;
+      }
+      
+      // Log warning for non-critical violations
+      const warnings = riskCheck.violations.filter(v => v.severity === 'warning');
+      if (warnings.length > 0) {
+        logger.warn('Risk warnings', { warnings });
+      }
     }
     
-    // Would add risk checks here before execution
-    // For now, execute directly
     await this.placeOrderFromSignal(signal);
   }
   
