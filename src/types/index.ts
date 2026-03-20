@@ -10,6 +10,7 @@ export interface Asset {
 
 export interface Position {
   asset: string;
+  sector?: string;       // Asset sector (e.g., "crypto", "defi")
   size: number;          // in asset units
   entryPrice: number;
   currentPrice: number;
@@ -56,8 +57,10 @@ export interface Signal {
   action: 'buy' | 'sell' | 'hold';
   confidence: number;    // 0-1
   targetSize?: number;
+  targetProfitPercent?: number; // Expected profit % for Kelly calculation
   stopLoss?: number;
   takeProfit?: number;
+  price?: number; // Current asset price
   reasoning: string;
   modelSource: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
   timestamp: number;
@@ -86,6 +89,16 @@ export interface RiskViolation {
   message: string;
   current: number;
   limit: number;
+}
+
+export interface AssetInfo {
+  symbol: string;
+  name: string;
+  price: number;
+  volatility: number;
+  sector?: string;
+  marketCap?: number;
+  volume24h?: number;
 }
 
 /**

@@ -2,6 +2,9 @@
  * Hyperliquid Trading Configuration
  */
 
+import dotenv from 'dotenv';
+dotenv.config();
+
 export interface TradingConfig {
   // Hyperliquid API
   hyperliquid: {
