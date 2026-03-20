@@ -3,7 +3,7 @@
  * Core module for placing and managing orders on Hyperliquid
  */
 
-import { hlClient } from './hyperliquid';
+import { hyperliquid as hlClient } from './hyperliquid';
 import { Order } from '../types';
 import { logger } from './logger';
 
@@ -71,18 +71,16 @@ export class OrderExecutor {
       }
       
       // Build order object for Hyperliquid
-      const order: Order = {
-        asset: request.asset,
-        side: request.side,
-        type: request.type,
-        size: request.size,
-        price: request.price,
-        reduceOnly: request.reduceOnly,
-        triggerPrice: request.triggerPrice,
+      const order = {
+        coin: request.asset,
+        side: request.side === 'buy' ? 'A' as const : 'B' as const,
+        sz: request.size,
+        limitPx: request.price,
       };
       
       // Place the order through the Hyperliquid client
-      const orderId = await hlClient.placeOrder(order);
+      const result = await hlClient.placeOrder(order);
+      const orderId = typeof result === 'string' ? result : result.orderId;
       
       if (orderId) {
         this.pendingOrders.set(orderId, request);
@@ -174,7 +172,7 @@ export class OrderExecutor {
   /**
    * Cancel an order
    */
-  async cancelOrder(orderId: string, asset: string): Promise<OrderResult> {
+  async cancelOrder(orderId: string, asset?: string): Promise<OrderResult> {
     try {
       logger.info(`Cancelling order: ${orderId}`);
       
@@ -182,7 +180,7 @@ export class OrderExecutor {
         return { success: false, error: 'Wallet not authenticated' };
       }
       
-      await hlClient.cancelOrder(orderId, asset);
+      await hlClient.cancelOrder(orderId);
       this.pendingOrders.delete(orderId);
       this.stopOrders.delete(orderId);
       

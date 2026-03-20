@@ -9,7 +9,7 @@
  */
 
 import { generatePerformanceReport, getTradeHistory, getBoardSummary } from './utils/reporting';
-import { hlClient } from './utils/hyperliquid';
+import { hyperliquid as hlClient } from './utils/hyperliquid';
 import { config } from './config';
 import { logger } from './utils/logger';
 

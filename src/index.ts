@@ -4,7 +4,7 @@
  */
 
 import { config } from './config';
-import { hlClient } from './utils/hyperliquid';
+import { hyperliquid as hlClient } from './utils/hyperliquid';
 import { agentFactory } from './agents';
 import { logger } from './utils/logger';
 import { riskManager } from './utils/riskManager';
@@ -107,7 +107,7 @@ class TradingSystem {
     const positions = await hlClient.getPositions();
     const usdcBalance = await hlClient.getUsdcBalance();
     
-    const totalValue = positions.reduce((sum, p) => {
+    const totalValue = positions.reduce((sum: any, p: any) => {
       return sum + p.size * p.currentPrice;
     }, usdcBalance);
     
@@ -190,15 +190,14 @@ class TradingSystem {
   private async placeOrderFromSignal(signal: Signal): Promise<void> {
     try {
       const order = {
-        asset: signal.asset,
-        side: signal.action as 'buy' | 'sell',
-        type: 'market' as const,
-        size: signal.targetSize || 0,
+        coin: signal.asset,
+        side: signal.action === 'buy' ? 'A' as const : 'B' as const,
+        sz: signal.targetSize || 0,
       };
       
       await hlClient.placeOrder(order);
       logger.info(`Executed ${signal.action} order for ${signal.asset}`, {
-        size: order.size,
+        size: order.sz,
         strategy: signal.strategy,
       });
     } catch (error) {

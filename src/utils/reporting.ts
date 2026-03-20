@@ -3,7 +3,7 @@
  * Provides performance updates and trade history for dashboard consumption
  */
 
-import { hlClient } from './hyperliquid';
+import { hyperliquid as hlClient } from './hyperliquid';
 import { logger } from './logger';
 import { Portfolio, Position, Trade, MarketData } from '../types';
 
@@ -71,7 +71,7 @@ export async function generatePerformanceReport(): Promise<PerformanceReport> {
     const tradeHistory = await getTradeHistory(0, 100);
     
     // Calculate portfolio summary
-    const positionsValueUsd = positions.reduce((sum, p) => {
+    const positionsValueUsd = positions.reduce((sum: any, p: any) => {
       return sum + (p.size * p.currentPrice);
     }, 0);
     
@@ -184,7 +184,7 @@ export async function getBoardSummary(): Promise<{
     const usdcBalance = await hlClient.getUsdcBalance();
     const tradeHistory = await getTradeHistory(0, 100);
     
-    const positionsValue = positions.reduce((sum, p) => {
+    const positionsValue = positions.reduce((sum: any, p: any) => {
       return sum + (p.size * p.currentPrice);
     }, 0);
     const totalValue = positionsValue + usdcBalance;
@@ -292,7 +292,7 @@ function calculateDailyStats(trades: Trade[]): DailyStats {
 
 function calculateRiskMetrics(positions: Position[], totalValueUsd: number): RiskMetrics {
   // Calculate total leverage
-  const totalLeverage = positions.reduce((sum, p) => {
+  const totalLeverage = positions.reduce((sum: any, p: any) => {
     return sum + (Math.abs(p.size * p.currentPrice) / totalValueUsd) * p.leverage;
   }, 0);
   

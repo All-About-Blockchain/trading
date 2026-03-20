@@ -1,190 +1,184 @@
+"use strict";
 /**
  * Dashboard Server
  * Real-time monitoring web interface for the trading system
- * 
+ *
  * Usage:
  *   npm run dashboard        # Start dashboard server
  *   npm run dashboard:dev   # Start with dev mode (auto-reload)
- * 
+ *
  * Access at http://localhost:3000
  */
-
-import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
-import basicAuth from 'express-basic-auth';
-import { hyperliquid as hlClient } from './utils/hyperliquid';
-import { generatePerformanceReport, getBoardSummary, getTradeHistory } from './utils/reporting';
-import { logger } from './utils/logger';
-import { config } from './config';
-
-const app = express();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.app = void 0;
+exports.startDashboard = startDashboard;
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
+const express_basic_auth_1 = __importDefault(require("express-basic-auth"));
+const hyperliquid_1 = require("./utils/hyperliquid");
+const reporting_1 = require("./utils/reporting");
+const logger_1 = require("./utils/logger");
+const config_1 = require("./config");
+const app = (0, express_1.default)();
+exports.app = app;
 const PORT = process.env.DASHBOARD_PORT || 3000;
-
 // Authentication configuration
 const DASHBOARD_USER = process.env.DASHBOARD_USER || 'admin';
 const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'change_me';
 const AUTH_ENABLED = process.env.DASHBOARD_AUTH !== 'false';
-
 // Create basic auth middleware
-const authMiddleware = basicAuth({
-  users: {
-    [DASHBOARD_USER]: DASHBOARD_PASS,
-  },
-  challenge: true,
-  realm: 'Hyperliquid Dashboard',
+const authMiddleware = (0, express_basic_auth_1.default)({
+    users: {
+        [DASHBOARD_USER]: DASHBOARD_PASS,
+    },
+    challenge: true,
+    realm: 'Hyperliquid Dashboard',
 });
-
 // Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static('dist/dashboard'));
-
+app.use((0, cors_1.default)());
+app.use(express_1.default.json());
+app.use(express_1.default.static('dist/dashboard'));
 // Apply auth to dashboard routes if enabled
 if (AUTH_ENABLED) {
-  app.use('/dashboard', authMiddleware);
-  app.use('/api', authMiddleware);
-  logger.info(`Dashboard auth enabled. User: ${DASHBOARD_USER}`);
-} else {
-  logger.warn('Dashboard auth is DISABLED - anyone can access!');
+    app.use('/dashboard', authMiddleware);
+    app.use('/api', authMiddleware);
+    logger_1.logger.info(`Dashboard auth enabled. User: ${DASHBOARD_USER}`);
 }
-
+else {
+    logger_1.logger.warn('Dashboard auth is DISABLED - anyone can access!');
+}
 // System state
-let systemStatus: 'running' | 'stopped' | 'error' = 'stopped';
-let lastUpdate: number = 0;
-let lastError: string | null = null;
-
+let systemStatus = 'stopped';
+let lastUpdate = 0;
+let lastError = null;
 // Health check endpoint (unauthenticated for monitoring)
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({
-    status: systemStatus,
-    uptime: process.uptime(),
-    lastUpdate,
-    lastError,
-    timestamp: Date.now(),
-    authEnabled: AUTH_ENABLED,
-  });
-});
-
-// Portfolio summary endpoint
-app.get('/api/portfolio', async (_req: Request, res: Response) => {
-  try {
-    const summary = await getBoardSummary();
-    lastUpdate = Date.now();
-    lastError = null;
-    res.json(summary);
-  } catch (error: any) {
-    lastError = error.message;
-    logger.error('Failed to get portfolio', { error });
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Detailed performance report
-app.get('/api/performance', async (_req: Request, res: Response) => {
-  try {
-    const report = await generatePerformanceReport();
-    lastUpdate = Date.now();
-    lastError = null;
-    res.json(report);
-  } catch (error: any) {
-    lastError = error.message;
-    logger.error('Failed to get performance report', { error });
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Positions endpoint
-app.get('/api/positions', async (_req: Request, res: Response) => {
-  try {
-    const positions = await hlClient.getPositions();
-    const usdcBalance = await hlClient.getUsdcBalance();
-    
-    const positionsWithValue = positions.map((p: any) => ({
-      ...p,
-      valueUsd: p.size * p.currentPrice,
-      pnlPercent: p.entryPrice > 0 ? ((p.currentPrice - p.entryPrice) / p.entryPrice) * 100 : 0,
-    }));
-    
-    lastUpdate = Date.now();
+app.get('/api/health', (_req, res) => {
     res.json({
-      positions: positionsWithValue,
-      cashUsd: usdcBalance,
-      totalPositions: positions.length,
+        status: systemStatus,
+        uptime: process.uptime(),
+        lastUpdate,
+        lastError,
+        timestamp: Date.now(),
+        authEnabled: AUTH_ENABLED,
     });
-  } catch (error: any) {
-    lastError = error.message;
-    logger.error('Failed to get positions', { error });
-    res.status(500).json({ error: error.message });
-  }
 });
-
+// Portfolio summary endpoint
+app.get('/api/portfolio', async (_req, res) => {
+    try {
+        const summary = await (0, reporting_1.getBoardSummary)();
+        lastUpdate = Date.now();
+        lastError = null;
+        res.json(summary);
+    }
+    catch (error) {
+        lastError = error.message;
+        logger_1.logger.error('Failed to get portfolio', { error });
+        res.status(500).json({ error: error.message });
+    }
+});
+// Detailed performance report
+app.get('/api/performance', async (_req, res) => {
+    try {
+        const report = await (0, reporting_1.generatePerformanceReport)();
+        lastUpdate = Date.now();
+        lastError = null;
+        res.json(report);
+    }
+    catch (error) {
+        lastError = error.message;
+        logger_1.logger.error('Failed to get performance report', { error });
+        res.status(500).json({ error: error.message });
+    }
+});
+// Positions endpoint
+app.get('/api/positions', async (_req, res) => {
+    try {
+        const positions = await hyperliquid_1.hyperliquid.getPositions();
+        const usdcBalance = await hyperliquid_1.hyperliquid.getUsdcBalance();
+        const positionsWithValue = positions.map((p) => ({
+            ...p,
+            valueUsd: p.size * p.currentPrice,
+            pnlPercent: p.entryPrice > 0 ? ((p.currentPrice - p.entryPrice) / p.entryPrice) * 100 : 0,
+        }));
+        lastUpdate = Date.now();
+        res.json({
+            positions: positionsWithValue,
+            cashUsd: usdcBalance,
+            totalPositions: positions.length,
+        });
+    }
+    catch (error) {
+        lastError = error.message;
+        logger_1.logger.error('Failed to get positions', { error });
+        res.status(500).json({ error: error.message });
+    }
+});
 // Trade history endpoint
-app.get('/api/trades', async (req: Request, res: Response) => {
-  try {
-    const page = parseInt(req.query.page as string) || 0;
-    const pageSize = parseInt(req.query.pageSize as string) || 20;
-    
-    const history = await getTradeHistory(page, pageSize);
-    lastUpdate = Date.now();
-    res.json(history);
-  } catch (error: any) {
-    lastError = error.message;
-    logger.error('Failed to get trades', { error });
-    res.status(500).json({ error: error.message });
-  }
+app.get('/api/trades', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 0;
+        const pageSize = parseInt(req.query.pageSize) || 20;
+        const history = await (0, reporting_1.getTradeHistory)(page, pageSize);
+        lastUpdate = Date.now();
+        res.json(history);
+    }
+    catch (error) {
+        lastError = error.message;
+        logger_1.logger.error('Failed to get trades', { error });
+        res.status(500).json({ error: error.message });
+    }
 });
-
 // Market data endpoint
-app.get('/api/markets', async (_req: Request, res: Response) => {
-  try {
-    const assets = await hlClient.getAssets();
-    const topAssets = assets.slice(0, 20).map((asset: any) => ({
-      name: asset,
-      // Note: Would need to fetch detailed market data per asset
-      // This is simplified for now
-    }));
-    
-    res.json({ assets: topAssets });
-  } catch (error: any) {
-    lastError = error.message;
-    logger.error('Failed to get markets', { error });
-    res.status(500).json({ error: error.message });
-  }
+app.get('/api/markets', async (_req, res) => {
+    try {
+        const assets = await hyperliquid_1.hyperliquid.getAssets();
+        const topAssets = assets.slice(0, 20).map((asset) => ({
+            name: asset,
+            // Note: Would need to fetch detailed market data per asset
+            // This is simplified for now
+        }));
+        res.json({ assets: topAssets });
+    }
+    catch (error) {
+        lastError = error.message;
+        logger_1.logger.error('Failed to get markets', { error });
+        res.status(500).json({ error: error.message });
+    }
 });
-
 // System status endpoint
-app.get('/api/system', (_req: Request, res: Response) => {
-  res.json({
-    status: systemStatus,
-    config: {
-      dataAgentIntervalMs: config.agents.dataAgentIntervalMs,
-      analysisAgentIntervalMs: config.agents.analysisAgentIntervalMs,
-      riskCheckEnabled: config.agents.riskCheckEnabled,
-    },
-    lastUpdate,
-    lastError,
-    timestamp: Date.now(),
-  });
+app.get('/api/system', (_req, res) => {
+    res.json({
+        status: systemStatus,
+        config: {
+            dataAgentIntervalMs: config_1.config.agents.dataAgentIntervalMs,
+            analysisAgentIntervalMs: config_1.config.agents.analysisAgentIntervalMs,
+            riskCheckEnabled: config_1.config.agents.riskCheckEnabled,
+        },
+        lastUpdate,
+        lastError,
+        timestamp: Date.now(),
+    });
 });
-
 // Agent status endpoint
-app.get('/api/agents', (_req: Request, res: Response) => {
-  // Would integrate with actual agent system
-  res.json({
-    agents: [
-      { name: 'GPT Agent', status: 'idle', lastRun: null },
-      { name: 'Gemini Agent', status: 'idle', lastRun: null },
-      { name: 'MiniMax Agent', status: 'idle', lastRun: null },
-      { name: 'Ensemble Agent', status: 'idle', lastRun: null },
-      { name: 'ML Agent', status: 'idle', lastRun: null },
-    ],
-    timestamp: Date.now(),
-  });
+app.get('/api/agents', (_req, res) => {
+    // Would integrate with actual agent system
+    res.json({
+        agents: [
+            { name: 'GPT Agent', status: 'idle', lastRun: null },
+            { name: 'Gemini Agent', status: 'idle', lastRun: null },
+            { name: 'MiniMax Agent', status: 'idle', lastRun: null },
+            { name: 'Ensemble Agent', status: 'idle', lastRun: null },
+            { name: 'ML Agent', status: 'idle', lastRun: null },
+        ],
+        timestamp: Date.now(),
+    });
 });
-
 // Dashboard HTML
-app.get('/dashboard', (_req: Request, res: Response) => {
-  res.send(`
+app.get('/dashboard', (_req, res) => {
+    res.send(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -482,25 +476,20 @@ app.get('/dashboard', (_req: Request, res: Response) => {
 </html>
   `);
 });
-
 // Redirect root to dashboard
-app.get('/', (_req: Request, res: Response) => {
-  res.redirect('/dashboard');
+app.get('/', (_req, res) => {
+    res.redirect('/dashboard');
 });
-
 // Start server
-export function startDashboard(): void {
-  app.listen(PORT, () => {
-    logger.info(`Dashboard server running at http://localhost:${PORT}`);
-    logger.info(`Dashboard URL: http://localhost:${PORT}/dashboard`);
-    systemStatus = 'running';
-  });
+function startDashboard() {
+    app.listen(PORT, () => {
+        logger_1.logger.info(`Dashboard server running at http://localhost:${PORT}`);
+        logger_1.logger.info(`Dashboard URL: http://localhost:${PORT}/dashboard`);
+        systemStatus = 'running';
+    });
 }
-
-// Export for import
-export { app };
-
 // Start if run directly
 if (require.main === module) {
-  startDashboard();
+    startDashboard();
 }
+//# sourceMappingURL=dashboard-server.js.map
