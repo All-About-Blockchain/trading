@@ -206,6 +206,41 @@ app.get('/api/strategies', (_req: Request, res: Response) => {
   });
 });
 
+// Historical performance data (in-memory store)
+const performanceHistory: { timestamp: number; totalValue: number; dailyPnl: number }[] = [];
+
+// Record performance snapshot every 5 minutes
+setInterval(async () => {
+  try {
+    const summary = await getBoardSummary();
+    performanceHistory.push({
+      timestamp: Date.now(),
+      totalValue: summary.totalValue || 0,
+      dailyPnl: summary.dailyPnl || 0,
+    });
+    // Keep only last 7 days (2016 points at 5-min intervals)
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    while (performanceHistory.length > 0 && performanceHistory[0].timestamp < weekAgo) {
+      performanceHistory.shift();
+    }
+  } catch (err) {
+    logger.error('Failed to record performance snapshot', { error: err });
+  }
+}, 5 * 60 * 1000);
+
+// Historical performance endpoint
+app.get('/api/performance/history', (_req: Request, res: Response) => {
+  const days = parseInt(_req.query.days as string) || 7;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  
+  const filtered = performanceHistory.filter(p => p.timestamp >= cutoff);
+  
+  res.json({
+    history: filtered,
+    timestamp: Date.now(),
+  });
+});
+
 // Dashboard HTML - serve from external file
 import * as fs from 'fs';
 import * as path from 'path';

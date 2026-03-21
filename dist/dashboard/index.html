@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>All About Blockchain — Trading Dashboard</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -41,6 +44,10 @@
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body { cursor: default; }
+    button, input, textarea, select { cursor: pointer; }
+    a { cursor: pointer; }
 
     body {
       font-family: var(--font-body);
@@ -508,6 +515,16 @@
       </div>
     </div>
 
+    <!-- Performance Chart -->
+    <div class="grid" style="margin-top: 1rem;">
+      <div class="card" style="grid-column: span 4;">
+        <div class="card-title">Portfolio Performance (7 Days)</div>
+        <div id="performanceChart" style="height: 200px; display: flex; align-items: center; justify-content: center;">
+          <div class="empty-state">Loading chart...</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Tabs for Strategies and Agents -->
     <div class="tabs" style="margin-top: 1.5rem;">
       <button class="tab active" data-tab="strategies">Strategies</button>
@@ -704,6 +721,80 @@
       'technical-ml': '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>',
     };
 
+    // Performance chart using Recharts
+    async function updatePerformanceChart() {
+      const chartContainer = document.getElementById('performanceChart');
+      if (!chartContainer) return;
+
+      try {
+        const resp = await fetch(API_BASE + '/api/performance/history?days=7');
+        const data = await resp.json();
+        const history = data.history || [];
+
+        if (history.length === 0) {
+          chartContainer.innerHTML = '<div class="empty-state">No historical data yet. Data will appear as performance is recorded.</div>';
+          return;
+        }
+
+        // Sample data to reduce points (max 50)
+        const sampled = history.length > 50 
+          ? history.filter((_, i) => i % Math.ceil(history.length / 50) === 0)
+          : history;
+
+        // Build SVG chart manually (no React needed)
+        const width = chartContainer.clientWidth || 800;
+        const height = 180;
+        const padding = 30;
+        const chartWidth = width - padding * 2;
+        const chartHeight = height - padding * 2;
+
+        const values = sampled.map(d => d.totalValue);
+        const minVal = Math.min(...values) * 0.99 || 0;
+        const maxVal = Math.max(...values) * 1.01 || 100;
+        const range = maxVal - minVal || 1;
+
+        const points = sampled.map((d, i) => ({
+          x: padding + (i / (sampled.length - 1)) * chartWidth,
+          y: padding + chartHeight - ((d.totalValue - minVal) / range) * chartHeight,
+          value: d.totalValue,
+          time: d.timestamp
+        }));
+
+        const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+        const areaD = pathD + ` L ${points[points.length - 1].x} ${height - padding} L ${padding} ${height - padding} Z`;
+
+        // Create gradient
+        const gradientId = 'chartGradient';
+        
+        chartContainer.innerHTML = `
+          <svg width="${width}" height="${height}" style="font-family: var(--font-body);">
+            <defs>
+              <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color: var(--color-primary); stop-opacity: 0.3" />
+                <stop offset="100%" style="stop-color: var(--color-primary); stop-opacity: 0" />
+              </linearGradient>
+            </defs>
+            <!-- Grid lines -->
+            ${[0, 0.25, 0.5, 0.75, 1].map(pct => `
+              <line x1="${padding}" y1="${padding + chartHeight * (1 - pct)}" x2="${width - padding}" y2="${padding + chartHeight * (1 - pct)}" stroke="var(--color-border)" stroke-dasharray="2,2" />
+              <text x="${padding - 5}" y="${padding + chartHeight * (1 - pct) + 4}" fill="var(--color-text-muted)" font-size="10" text-anchor="end">$${((maxVal - minVal) * pct + minVal).toFixed(0)}</text>
+            `).join('')}
+            <!-- Area fill -->
+            <path d="${areaD}" fill="url(#${gradientId})" />
+            <!-- Line -->
+            <path d="${pathD}" fill="none" stroke="var(--color-primary)" stroke-width="2" />
+            <!-- Points -->
+            ${points.filter((_, i) => i % Math.ceil(points.length / 10) === 0).map(p => `
+              <circle cx="${p.x}" cy="${p.y}" r="3" fill="var(--color-primary)" />
+            `).join('')}
+          </svg>
+        `;
+      } catch (e) {
+        console.error('Chart error:', e);
+        chartContainer.innerHTML = '<div class="empty-state">Failed to load chart</div>';
+      }
+    }
+
     async function updateDashboard() {
       // System health
       const health = await fetchJSON(API_BASE + '/api/health');
@@ -849,6 +940,9 @@
 
       // Last updated
       document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+      
+      // Update performance chart
+      updatePerformanceChart();
     }
 
     // Initial load
