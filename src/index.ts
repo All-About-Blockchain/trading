@@ -6,6 +6,7 @@
 import { config } from './config';
 import { hyperliquid as hlClient } from './utils/hyperliquid';
 import { agentFactory } from './agents';
+import { agentActivityTracker } from './agents/AgentActivityTracker';
 import { logger } from './utils/logger';
 import { riskManager } from './utils/riskManager';
 import { Portfolio, MarketData, Signal } from './types';
@@ -28,6 +29,10 @@ class TradingSystem {
     // Initialize agents
     agentFactory.initialize();
     logger.info(`Initialized ${agentFactory.getEnabledAgents().length} agents`);
+    
+    // Initialize agent activity tracker
+    agentActivityTracker.initializeFromConfigs(agentFactory.getAgentStatuses());
+    logger.info('Agent activity tracker initialized');
     
     this.running = true;
   }
@@ -130,6 +135,8 @@ class TradingSystem {
    * Run a complete trading cycle
    */
   private async runTradingCycle(): Promise<void> {
+    const cycleStart = Date.now();
+    
     try {
       logger.info('Starting trading cycle...');
       
@@ -139,11 +146,22 @@ class TradingSystem {
       // Get portfolio
       const portfolio = await this.getPortfolio();
       
-      // Run strategy agents
+      // Run strategy agents and track activity
       const strategyResults = await agentFactory.runStrategyAgents(marketData, portfolio);
+      
+      // Record each agent's results
+      for (const result of strategyResults) {
+        const duration = Date.now() - cycleStart;
+        agentActivityTracker.startRun(result.agentId);
+        agentActivityTracker.recordResult(result.agentId, result, duration);
+      }
       
       // Run ensemble to combine signals
       const ensembleResult = await agentFactory.runEnsembleAgent(marketData, portfolio);
+      
+      // Record ensemble results
+      agentActivityTracker.startRun(ensembleResult.agentId);
+      agentActivityTracker.recordResult(ensembleResult.agentId, ensembleResult, Date.now() - cycleStart);
       
       // Execute final signals
       for (const signal of ensembleResult.signals) {
@@ -151,8 +169,13 @@ class TradingSystem {
       }
       
       logger.info(`Trading cycle complete. Generated ${ensembleResult.signals.length} signals`);
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Trading cycle failed', { error });
+      // Record error for all known agents
+      const agents = agentFactory.getAgentStatuses();
+      for (const agent of agents) {
+        agentActivityTracker.recordError(agent.id, error.message);
+      }
     }
   }
   

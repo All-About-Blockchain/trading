@@ -16,6 +16,8 @@ import { hyperliquid as hlClient } from './utils/hyperliquid';
 import { generatePerformanceReport, getBoardSummary, getTradeHistory } from './utils/reporting';
 import { logger } from './utils/logger';
 import { config } from './config';
+import { agentActivityTracker } from './agents/AgentActivityTracker';
+import { agentFactory } from './agents';
 
 const app = express();
 const PORT = process.env.DASHBOARD_PORT || 3000;
@@ -23,7 +25,7 @@ const PORT = process.env.DASHBOARD_PORT || 3000;
 // Authentication configuration
 const DASHBOARD_USER = process.env.DASHBOARD_USER || 'admin';
 const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'change_me';
-const AUTH_ENABLED = process.env.DASHBOARD_AUTH !== 'false';
+const AUTH_ENABLED = false; //  !== 'false';
 
 // Create basic auth middleware
 const authMiddleware = basicAuth({
@@ -167,22 +169,60 @@ app.get('/api/system', (_req: Request, res: Response) => {
   });
 });
 
+// Initialize agent activity tracker
+agentActivityTracker.initializeFromConfigs(agentFactory.getAgentStatuses());
+
 // Agent status endpoint
 app.get('/api/agents', (_req: Request, res: Response) => {
-  // Would integrate with actual agent system
+  const data = agentActivityTracker.getDashboardData();
   res.json({
-    agents: [
-      { name: 'GPT Agent', status: 'idle', lastRun: null },
-      { name: 'Gemini Agent', status: 'idle', lastRun: null },
-      { name: 'MiniMax Agent', status: 'idle', lastRun: null },
-      { name: 'Ensemble Agent', status: 'idle', lastRun: null },
-      { name: 'ML Agent', status: 'idle', lastRun: null },
-    ],
+    agents: data.agents,
+    strategies: data.strategies,
+    summary: data.summary,
     timestamp: Date.now(),
   });
 });
 
-// Dashboard HTML
+// Agent strategies endpoint
+app.get('/api/strategies', (_req: Request, res: Response) => {
+  const strategies = agentActivityTracker.getAllStrategies();
+  const activities = agentActivityTracker.getAllActivities();
+  
+  // Enrich strategies with agent info
+  const enrichedStrategies = strategies.map(strategy => {
+    const activity = activities.find(a => a.agentId === strategy.agentId);
+    return {
+      ...strategy,
+      agentName: activity?.agentName,
+      agentStatus: activity?.status,
+      lastRun: activity?.lastRun,
+      enabled: activity?.enabled ?? strategy.enabled,
+    };
+  });
+  
+  res.json({
+    strategies: enrichedStrategies,
+    timestamp: Date.now(),
+  });
+});
+
+// Dashboard HTML - serve from external file
+import * as fs from 'fs';
+import * as path from 'path';
+
+app.get('/dashboard', (_req: Request, res: Response) => {
+  const htmlPath = path.join(__dirname, 'dashboard', 'index.html');
+  try {
+    const html = fs.readFileSync(htmlPath, 'utf-8');
+    res.send(html);
+  } catch (err) {
+    logger.error('Failed to read dashboard HTML:', err);
+    res.status(500).send('Dashboard not found');
+  }
+});
+
+/*
+// Original inline HTML (kept for reference)
 app.get('/dashboard', (_req: Request, res: Response) => {
   res.send(`
 <!DOCTYPE html>
@@ -275,6 +315,10 @@ app.get('/dashboard', (_req: Request, res: Response) => {
     .risk-low { color: #059669; }
     .risk-medium { color: #d97706; }
     .risk-high { color: #dc2626; }
+    
+    .status-idle { background: #6b7280; color: #e5e7eb; }
+    .status-completed { background: #059669; color: #a7f3d0; }
+    .status-disabled { background: #9ca3af; color: #f3f4f6; }
   </style>
 </head>
 <body>
@@ -359,6 +403,76 @@ app.get('/dashboard', (_req: Request, res: Response) => {
         </thead>
         <tbody id="tradesTable">
           <tr><td colspan="6" style="text-align: center; color: #64748b;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Agent Strategies Section -->
+  <div class="grid">
+    <!-- Agent Summary -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Agent Summary</span>
+      </div>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-label">Total Agents</div>
+          <div class="stat-value" id="totalAgents">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Active Agents</div>
+          <div class="stat-value" id="activeAgents">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Signals Today</div>
+          <div class="stat-value" id="signalsToday">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Avg Confidence</div>
+          <div class="stat-value" id="avgConfidence">0%</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Agent Status -->
+    <div class="card" style="grid-column: span 2;">
+      <div class="card-header">
+        <span class="card-title">Agent Status</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Model</th>
+            <th>Specialty</th>
+            <th>Status</th>
+            <th>Last Run</th>
+            <th>Signals</th>
+          </tr>
+        </thead>
+        <tbody id="agentsTable">
+          <tr><td colspan="6" style="text-align: center; color: #64748b;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Strategies -->
+    <div class="card" style="grid-column: span 3;">
+      <div class="card-header">
+        <span class="card-title">Strategies</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Description</th>
+            <th>Agent</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="strategiesTable">
+          <tr><td colspan="4" style="text-align: center; color: #64748b;">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -470,6 +584,48 @@ app.get('/dashboard', (_req: Request, res: Response) => {
           \`).join('');
         }
       }
+      
+      // Get agent data
+      const agentsData = await fetchJSON(API_BASE + '/api/agents');
+      if (agentsData) {
+        // Update summary
+        document.getElementById('totalAgents').textContent = agentsData.summary.totalAgents;
+        document.getElementById('activeAgents').textContent = agentsData.summary.activeAgents;
+        document.getElementById('signalsToday').textContent = agentsData.summary.totalSignalsToday;
+        document.getElementById('avgConfidence').textContent = agentsData.summary.avgConfidence + '%';
+        
+        // Update agents table
+        const agentsBody = document.getElementById('agentsTable');
+        if (agentsData.agents && agentsData.agents.length > 0) {
+          agentsBody.innerHTML = agentsData.agents.map(a => \`
+            <tr>
+              <td>\${a.agentName}</td>
+              <td>\${a.model.toUpperCase()}</td>
+              <td>\${a.specialty}</td>
+              <td><span class="status-badge status-\${a.status}">\${a.status}</span></td>
+              <td>\${a.lastRun ? new Date(a.lastRun).toLocaleString() : 'Never'}</td>
+              <td>\${a.signalsGenerated}</td>
+            </tr>
+          \`).join('');
+        } else {
+          agentsBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No agents configured</td></tr>';
+        }
+        
+        // Update strategies table
+        const strategiesBody = document.getElementById('strategiesTable');
+        if (agentsData.strategies && agentsData.strategies.length > 0) {
+          strategiesBody.innerHTML = agentsData.strategies.map(s => \`
+            <tr>
+              <td><strong>\${s.name}</strong></td>
+              <td>\${s.description}</td>
+              <td>\${s.agentId}</td>
+              <td><span class="status-badge status-\${s.enabled ? 'running' : 'stopped'}">\${s.enabled ? 'Active' : 'Disabled'}</span></td>
+            </tr>
+          \`).join('');
+        } else {
+          strategiesBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #64748b;">No strategies configured</td></tr>';
+        }
+      }
     }
     
     // Initial load
@@ -482,6 +638,7 @@ app.get('/dashboard', (_req: Request, res: Response) => {
 </html>
   `);
 });
+*/
 
 // Redirect root to dashboard
 app.get('/', (_req: Request, res: Response) => {

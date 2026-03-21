@@ -1,0 +1,306 @@
+"use strict";
+/**
+ * Momentum Trading Agent
+ * Pure momentum strategy using price momentum, RSI, and trend analysis
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.MomentumAgent = void 0;
+const BaseAgent_1 = require("./BaseAgent");
+const logger_1 = require("../utils/logger");
+/**
+ * Momentum indicators calculator
+ */
+class MomentumIndicators {
+    /**
+     * Calculate RSI
+     */
+    static rsi(prices, period = 14) {
+        if (prices.length < period + 1)
+            return 50;
+        let gains = 0;
+        let losses = 0;
+        for (let i = prices.length - period; i < prices.length; i++) {
+            const change = prices[i] - prices[i - 1];
+            if (change > 0)
+                gains += change;
+            else
+                losses -= change;
+        }
+        const avgGain = gains / period;
+        const avgLoss = losses / period;
+        if (avgLoss === 0)
+            return 100;
+        const rs = avgGain / avgLoss;
+        return 100 - (100 / (1 + rs));
+    }
+    /**
+     * Calculate Momentum (change over period)
+     */
+    static momentum(prices, period = 10) {
+        if (prices.length < period)
+            return 0;
+        return prices[prices.length - 1] - prices[prices.length - period];
+    }
+    /**
+     * Calculate Rate of Change (ROC)
+     */
+    static roc(prices, period = 12) {
+        if (prices.length < period)
+            return 0;
+        const oldPrice = prices[prices.length - period];
+        if (oldPrice === 0)
+            return 0;
+        return ((prices[prices.length - 1] - oldPrice) / oldPrice) * 100;
+    }
+    /**
+     * Calculate trend using linear regression
+     */
+    static trend(prices) {
+        if (prices.length < 10)
+            return { direction: 'sideways', strength: 0 };
+        // Simple linear regression
+        const n = prices.length;
+        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+        for (let i = 0; i < n; i++) {
+            sumX += i;
+            sumY += prices[i];
+            sumXY += i * prices[i];
+            sumX2 += i * i;
+        }
+        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        const avgPrice = sumY / n;
+        const normalizedSlope = (slope / avgPrice) * 100;
+        let direction;
+        let strength;
+        if (normalizedSlope > 0.5) {
+            direction = 'up';
+            strength = Math.min(100, normalizedSlope * 20);
+        }
+        else if (normalizedSlope < -0.5) {
+            direction = 'down';
+            strength = Math.min(100, Math.abs(normalizedSlope) * 20);
+        }
+        else {
+            direction = 'sideways';
+            strength = 50;
+        }
+        return { direction, strength };
+    }
+    /**
+     * Calculate all momentum indicators
+     */
+    static calculate(prices) {
+        const rsi = this.rsi(prices);
+        const momentum = this.momentum(prices);
+        const roc = this.roc(prices);
+        const { direction, strength } = this.trend(prices);
+        return { rsi, momentum, roc, trend: direction, strength };
+    }
+}
+class MomentumAgent extends BaseAgent_1.BaseAgent {
+    constructor(config) {
+        super(config);
+        this.priceHistory = new Map();
+        this.tradeLog = [];
+    }
+    /**
+     * Update price history for an asset
+     */
+    updateHistory(asset, data) {
+        let history = this.priceHistory.get(asset);
+        if (!history) {
+            history = { prices: [], highs: [], lows: [], volumes: [], timestamps: [] };
+        }
+        history.prices.push(data.last);
+        history.highs.push(data.ask); // Using ask as proxy for high
+        history.lows.push(data.bid); // Using bid as proxy for low
+        history.volumes.push(data.volume24h);
+        history.timestamps.push(data.timestamp);
+        // Keep only last 100 data points
+        if (history.prices.length > 100) {
+            history.prices = history.prices.slice(-100);
+            history.highs = history.highs.slice(-100);
+            history.lows = history.lows.slice(-100);
+            history.volumes = history.volumes.slice(-100);
+            history.timestamps = history.timestamps.slice(-100);
+        }
+        this.priceHistory.set(asset, history);
+    }
+    /**
+     * Get current position for an asset
+     */
+    getPosition(portfolio, asset) {
+        const position = portfolio.positions.find(p => p.asset === asset);
+        return position?.size || 0;
+    }
+    /**
+     * Analyze market and generate momentum signals
+     */
+    async analyze(marketData, portfolio) {
+        const signals = [];
+        // Focus on major assets
+        const assets = ['BTC', 'ETH', 'SOL', 'AVAX', 'ARB', 'MATIC', 'LINK'];
+        for (const asset of assets) {
+            const data = marketData.get(asset);
+            if (!data)
+                continue;
+            // Update price history
+            this.updateHistory(asset, data);
+            const history = this.priceHistory.get(asset);
+            if (!history || history.prices.length < 20) {
+                logger_1.logger.debug(`Insufficient history for ${asset}`);
+                continue;
+            }
+            // Calculate momentum indicators
+            const indicators = MomentumIndicators.calculate(history.prices);
+            // Generate signal
+            const signal = this.generateMomentumSignal(asset, data, portfolio, indicators, this.getPosition(portfolio, asset));
+            if (signal) {
+                signals.push(signal);
+            }
+        }
+        return signals;
+    }
+    /**
+     * Generate momentum-based trading signal
+     */
+    generateMomentumSignal(asset, data, portfolio, indicators, currentPosition) {
+        let score = 0;
+        const reasons = [];
+        // RSI signals (mean reversion)
+        if (indicators.rsi < 30) {
+            score += 2;
+            reasons.push(`RSI oversold (${indicators.rsi.toFixed(1)})`);
+        }
+        else if (indicators.rsi > 70) {
+            score -= 2;
+            reasons.push(`RSI overbought (${indicators.rsi.toFixed(1)})`);
+        }
+        else if (indicators.rsi < 40) {
+            score += 1;
+            reasons.push(`RSI bearish (${indicators.rsi.toFixed(1)})`);
+        }
+        else if (indicators.rsi > 60) {
+            score -= 1;
+            reasons.push(`RSI bullish (${indicators.rsi.toFixed(1)})`);
+        }
+        // Rate of change
+        if (indicators.roc > 5) {
+            score += 2;
+            reasons.push(`Strong ROC +${indicators.roc.toFixed(1)}%`);
+        }
+        else if (indicators.roc < -5) {
+            score -= 2;
+            reasons.push(`Strong ROC ${indicators.roc.toFixed(1)}%`);
+        }
+        else if (indicators.roc > 2) {
+            score += 1;
+            reasons.push(`Positive ROC +${indicators.roc.toFixed(1)}%`);
+        }
+        else if (indicators.roc < -2) {
+            score -= 1;
+            reasons.push(`Negative ROC ${indicators.roc.toFixed(1)}%`);
+        }
+        // Trend alignment
+        if (indicators.trend === 'up' && indicators.strength > 60) {
+            score += 2;
+            reasons.push(`Strong uptrend (${indicators.strength.toFixed(0)})`);
+        }
+        else if (indicators.trend === 'down' && indicators.strength > 60) {
+            score -= 2;
+            reasons.push(`Strong downtrend (${indicators.strength.toFixed(0)})`);
+        }
+        // Volume confirmation
+        const history = this.priceHistory.get(asset);
+        if (!history)
+            return null;
+        const avgVolume = history.volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+        if (data.volume24h > avgVolume * 1.5) {
+            if (score > 0) {
+                score += 1;
+                reasons.push('High volume confirming bullish');
+            }
+            else if (score < 0) {
+                score -= 1;
+                reasons.push('High volume confirming bearish');
+            }
+        }
+        // Determine action
+        let action = 'hold';
+        let confidence = 0;
+        if (score >= 3 && currentPosition === 0) {
+            action = 'buy';
+            confidence = Math.min(0.85, 0.5 + (score / 10));
+            reasons.push('BUY signal');
+        }
+        else if (score <= -3 && currentPosition > 0) {
+            action = 'sell';
+            confidence = Math.min(0.85, 0.5 + (Math.abs(score) / 10));
+            reasons.push('SELL signal');
+        }
+        else if (score >= 1 && score < 3 && currentPosition === 0) {
+            action = 'buy';
+            confidence = 0.55;
+            reasons.push('WEAK BUY signal');
+        }
+        else if (score <= -1 && score > -3 && currentPosition > 0) {
+            action = 'sell';
+            confidence = 0.55;
+            reasons.push('WEAK SELL signal');
+        }
+        if (action === 'hold' || confidence < 0.55) {
+            return null;
+        }
+        // Calculate position size based on confidence and risk
+        const baseSize = portfolio.availableUsd * 0.08; // 8% of available
+        const adjustedSize = baseSize * confidence;
+        return {
+            asset,
+            strategy: 'momentum',
+            action,
+            confidence,
+            targetSize: adjustedSize,
+            stopLoss: action === 'buy' ? data.last * 0.95 : data.last * 1.05,
+            takeProfit: action === 'buy' ? data.last * 1.10 : data.last * 0.90,
+            reasoning: `Momentum: ${reasons.join('; ')}`,
+            modelSource: 'minimax',
+            timestamp: Date.now(),
+        };
+    }
+    /**
+     * Log a trade for performance tracking
+     */
+    logTrade(asset, action, price) {
+        this.tradeLog.push({
+            timestamp: Date.now(),
+            asset,
+            action,
+            price,
+        });
+        // Keep last 1000 trades
+        if (this.tradeLog.length > 1000) {
+            this.tradeLog = this.tradeLog.slice(-1000);
+        }
+    }
+    /**
+     * Get performance metrics
+     */
+    getPerformanceMetrics() {
+        const totalTrades = this.tradeLog.length;
+        const buyTrades = this.tradeLog.filter(t => t.action === 'buy').length;
+        const sellTrades = this.tradeLog.filter(t => t.action === 'sell').length;
+        // Calculate win rate (simplified - would need actual PnL)
+        let wins = 0;
+        for (let i = 1; i < this.tradeLog.length; i++) {
+            if (this.tradeLog[i].action === 'sell' && this.tradeLog[i - 1].action === 'buy') {
+                if (this.tradeLog[i].price > this.tradeLog[i - 1].price) {
+                    wins++;
+                }
+            }
+        }
+        const winRate = sellTrades > 0 ? wins / sellTrades * 100 : 0;
+        return { totalTrades, buyTrades, sellTrades, winRate };
+    }
+}
+exports.MomentumAgent = MomentumAgent;
+//# sourceMappingURL=MomentumAgent.js.map

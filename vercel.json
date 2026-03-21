@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "dist/dashboard-server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "dist/dashboard",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "dist/dashboard-server.js"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "dist/dashboard/index.html"
+    },
+    {
+      "src": "/dashboard/(.*)",
+      "dest": "dist/dashboard/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "dist/dashboard/index.html"
+    }
+  ],
+  "env": {
+    "DASHBOARD_PORT": "3000",
+    "NODE_ENV": "production"
+  }
+}

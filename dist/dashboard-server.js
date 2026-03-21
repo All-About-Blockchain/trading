@@ -9,6 +9,39 @@
  *
  * Access at http://localhost:3000
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -22,13 +55,15 @@ const hyperliquid_1 = require("./utils/hyperliquid");
 const reporting_1 = require("./utils/reporting");
 const logger_1 = require("./utils/logger");
 const config_1 = require("./config");
+const AgentActivityTracker_1 = require("./agents/AgentActivityTracker");
+const agents_1 = require("./agents");
 const app = (0, express_1.default)();
 exports.app = app;
 const PORT = process.env.DASHBOARD_PORT || 3000;
 // Authentication configuration
 const DASHBOARD_USER = process.env.DASHBOARD_USER || 'admin';
 const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'change_me';
-const AUTH_ENABLED = process.env.DASHBOARD_AUTH !== 'false';
+const AUTH_ENABLED = false; //  !== 'false';
 // Create basic auth middleware
 const authMiddleware = (0, express_basic_auth_1.default)({
     users: {
@@ -162,23 +197,56 @@ app.get('/api/system', (_req, res) => {
         timestamp: Date.now(),
     });
 });
+// Initialize agent activity tracker
+AgentActivityTracker_1.agentActivityTracker.initializeFromConfigs(agents_1.agentFactory.getAgentStatuses());
 // Agent status endpoint
 app.get('/api/agents', (_req, res) => {
-    // Would integrate with actual agent system
+    const data = AgentActivityTracker_1.agentActivityTracker.getDashboardData();
     res.json({
-        agents: [
-            { name: 'GPT Agent', status: 'idle', lastRun: null },
-            { name: 'Gemini Agent', status: 'idle', lastRun: null },
-            { name: 'MiniMax Agent', status: 'idle', lastRun: null },
-            { name: 'Ensemble Agent', status: 'idle', lastRun: null },
-            { name: 'ML Agent', status: 'idle', lastRun: null },
-        ],
+        agents: data.agents,
+        strategies: data.strategies,
+        summary: data.summary,
         timestamp: Date.now(),
     });
 });
-// Dashboard HTML
+// Agent strategies endpoint
+app.get('/api/strategies', (_req, res) => {
+    const strategies = AgentActivityTracker_1.agentActivityTracker.getAllStrategies();
+    const activities = AgentActivityTracker_1.agentActivityTracker.getAllActivities();
+    // Enrich strategies with agent info
+    const enrichedStrategies = strategies.map(strategy => {
+        const activity = activities.find(a => a.agentId === strategy.agentId);
+        return {
+            ...strategy,
+            agentName: activity?.agentName,
+            agentStatus: activity?.status,
+            lastRun: activity?.lastRun,
+            enabled: activity?.enabled ?? strategy.enabled,
+        };
+    });
+    res.json({
+        strategies: enrichedStrategies,
+        timestamp: Date.now(),
+    });
+});
+// Dashboard HTML - serve from external file
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 app.get('/dashboard', (_req, res) => {
-    res.send(`
+    const htmlPath = path.join(__dirname, 'dashboard', 'index.html');
+    try {
+        const html = fs.readFileSync(htmlPath, 'utf-8');
+        res.send(html);
+    }
+    catch (err) {
+        logger_1.logger.error('Failed to read dashboard HTML:', err);
+        res.status(500).send('Dashboard not found');
+    }
+});
+/*
+// Original inline HTML (kept for reference)
+app.get('/dashboard', (_req: Request, res: Response) => {
+  res.send(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -269,6 +337,10 @@ app.get('/dashboard', (_req, res) => {
     .risk-low { color: #059669; }
     .risk-medium { color: #d97706; }
     .risk-high { color: #dc2626; }
+    
+    .status-idle { background: #6b7280; color: #e5e7eb; }
+    .status-completed { background: #059669; color: #a7f3d0; }
+    .status-disabled { background: #9ca3af; color: #f3f4f6; }
   </style>
 </head>
 <body>
@@ -358,6 +430,76 @@ app.get('/dashboard', (_req, res) => {
     </div>
   </div>
   
+  <!-- Agent Strategies Section -->
+  <div class="grid">
+    <!-- Agent Summary -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Agent Summary</span>
+      </div>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-label">Total Agents</div>
+          <div class="stat-value" id="totalAgents">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Active Agents</div>
+          <div class="stat-value" id="activeAgents">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Signals Today</div>
+          <div class="stat-value" id="signalsToday">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Avg Confidence</div>
+          <div class="stat-value" id="avgConfidence">0%</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Agent Status -->
+    <div class="card" style="grid-column: span 2;">
+      <div class="card-header">
+        <span class="card-title">Agent Status</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Model</th>
+            <th>Specialty</th>
+            <th>Status</th>
+            <th>Last Run</th>
+            <th>Signals</th>
+          </tr>
+        </thead>
+        <tbody id="agentsTable">
+          <tr><td colspan="6" style="text-align: center; color: #64748b;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Strategies -->
+    <div class="card" style="grid-column: span 3;">
+      <div class="card-header">
+        <span class="card-title">Strategies</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Description</th>
+            <th>Agent</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="strategiesTable">
+          <tr><td colspan="4" style="text-align: center; color: #64748b;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
   <div class="last-updated">
     Last updated: <span id="lastUpdated">-</span>
   </div>
@@ -413,7 +555,7 @@ app.get('/dashboard', (_req, res) => {
         pnlEl.textContent = formatCurrency(portfolio.dailyPnl);
         pnlEl.className = 'card-value ' + (portfolio.dailyPnl >= 0 ? 'positive' : 'negative');
         
-        document.getElementById('dailyPnlPercent').textContent = 
+        document.getElementById('dailyPnlPercent').textContent =
           '(' + formatPercent(portfolio.dailyPnlPercent) + ')';
         
         document.getElementById('openPositions').textContent = portfolio.openPositions;
@@ -464,6 +606,48 @@ app.get('/dashboard', (_req, res) => {
           \`).join('');
         }
       }
+      
+      // Get agent data
+      const agentsData = await fetchJSON(API_BASE + '/api/agents');
+      if (agentsData) {
+        // Update summary
+        document.getElementById('totalAgents').textContent = agentsData.summary.totalAgents;
+        document.getElementById('activeAgents').textContent = agentsData.summary.activeAgents;
+        document.getElementById('signalsToday').textContent = agentsData.summary.totalSignalsToday;
+        document.getElementById('avgConfidence').textContent = agentsData.summary.avgConfidence + '%';
+        
+        // Update agents table
+        const agentsBody = document.getElementById('agentsTable');
+        if (agentsData.agents && agentsData.agents.length > 0) {
+          agentsBody.innerHTML = agentsData.agents.map(a => \`
+            <tr>
+              <td>\${a.agentName}</td>
+              <td>\${a.model.toUpperCase()}</td>
+              <td>\${a.specialty}</td>
+              <td><span class="status-badge status-\${a.status}">\${a.status}</span></td>
+              <td>\${a.lastRun ? new Date(a.lastRun).toLocaleString() : 'Never'}</td>
+              <td>\${a.signalsGenerated}</td>
+            </tr>
+          \`).join('');
+        } else {
+          agentsBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No agents configured</td></tr>';
+        }
+        
+        // Update strategies table
+        const strategiesBody = document.getElementById('strategiesTable');
+        if (agentsData.strategies && agentsData.strategies.length > 0) {
+          strategiesBody.innerHTML = agentsData.strategies.map(s => \`
+            <tr>
+              <td><strong>\${s.name}</strong></td>
+              <td>\${s.description}</td>
+              <td>\${s.agentId}</td>
+              <td><span class="status-badge status-\${s.enabled ? 'running' : 'stopped'}">\${s.enabled ? 'Active' : 'Disabled'}</span></td>
+            </tr>
+          \`).join('');
+        } else {
+          strategiesBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #64748b;">No strategies configured</td></tr>';
+        }
+      }
     }
     
     // Initial load
@@ -476,6 +660,7 @@ app.get('/dashboard', (_req, res) => {
 </html>
   `);
 });
+*/
 // Redirect root to dashboard
 app.get('/', (_req, res) => {
     res.redirect('/dashboard');

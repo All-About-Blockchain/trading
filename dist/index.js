@@ -7,6 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
 const hyperliquid_1 = require("./utils/hyperliquid");
 const agents_1 = require("./agents");
+const AgentActivityTracker_1 = require("./agents/AgentActivityTracker");
 const logger_1 = require("./utils/logger");
 const riskManager_1 = require("./utils/riskManager");
 class TradingSystem {
@@ -26,6 +27,9 @@ class TradingSystem {
         // Initialize agents
         agents_1.agentFactory.initialize();
         logger_1.logger.info(`Initialized ${agents_1.agentFactory.getEnabledAgents().length} agents`);
+        // Initialize agent activity tracker
+        AgentActivityTracker_1.agentActivityTracker.initializeFromConfigs(agents_1.agentFactory.getAgentStatuses());
+        logger_1.logger.info('Agent activity tracker initialized');
         this.running = true;
     }
     /**
@@ -106,16 +110,26 @@ class TradingSystem {
      * Run a complete trading cycle
      */
     async runTradingCycle() {
+        const cycleStart = Date.now();
         try {
             logger_1.logger.info('Starting trading cycle...');
             // Get market data
             const marketData = await this.collectMarketData();
             // Get portfolio
             const portfolio = await this.getPortfolio();
-            // Run strategy agents
+            // Run strategy agents and track activity
             const strategyResults = await agents_1.agentFactory.runStrategyAgents(marketData, portfolio);
+            // Record each agent's results
+            for (const result of strategyResults) {
+                const duration = Date.now() - cycleStart;
+                AgentActivityTracker_1.agentActivityTracker.startRun(result.agentId);
+                AgentActivityTracker_1.agentActivityTracker.recordResult(result.agentId, result, duration);
+            }
             // Run ensemble to combine signals
             const ensembleResult = await agents_1.agentFactory.runEnsembleAgent(marketData, portfolio);
+            // Record ensemble results
+            AgentActivityTracker_1.agentActivityTracker.startRun(ensembleResult.agentId);
+            AgentActivityTracker_1.agentActivityTracker.recordResult(ensembleResult.agentId, ensembleResult, Date.now() - cycleStart);
             // Execute final signals
             for (const signal of ensembleResult.signals) {
                 await this.executeSignal(signal);
@@ -124,6 +138,11 @@ class TradingSystem {
         }
         catch (error) {
             logger_1.logger.error('Trading cycle failed', { error });
+            // Record error for all known agents
+            const agents = agents_1.agentFactory.getAgentStatuses();
+            for (const agent of agents) {
+                AgentActivityTracker_1.agentActivityTracker.recordError(agent.id, error.message);
+            }
         }
     }
     /**

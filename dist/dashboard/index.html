@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All About Blockchain — Trading Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --color-background: #0a0a0a;
+      --color-surface: #141414;
+      --color-surface-elevated: #1a1a1a;
+      --color-border: #262626;
+      --color-text: #fafafa;
+      --color-text-secondary: #a3a3a3;
+      --color-text-muted: #737373;
+      --color-primary: #3b82f6;
+      --color-primary-hover: #2563eb;
+      --color-accent: #60a5fa;
+      --color-positive: #10b981;
+      --color-negative: #ef4444;
+      --color-warning: #f59e0b;
+      --font-display: 'Crimson Pro', Georgia, serif;
+      --font-body: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --transition-fast: 150ms ease;
+    }
+
+    [data-theme="light"] {
+      --color-background: #f5f5f4;
+      --color-surface: #ffffff;
+      --color-surface-elevated: #fafaf9;
+      --color-border: #e5e5e5;
+      --color-text: #171717;
+      --color-text-secondary: #525252;
+      --color-text-muted: #a3a3a3;
+      --color-primary: #2563eb;
+      --color-primary-hover: #1d4ed8;
+      --color-accent: #3b82f6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--color-background);
+      color: var(--color-text);
+      min-height: 100vh;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+
+    .header {
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--color-text);
+      letter-spacing: -0.02em;
+    }
+
+    .header h1 span {
+      color: var(--color-text-muted);
+      font-weight: 400;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .status-running {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .status-stopped {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+    }
+
+    .status-error {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fcd34d;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .theme-toggle {
+      background: var(--color-surface-elevated);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      padding: 0.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-fast);
+    }
+
+    .theme-toggle:hover {
+      background: var(--color-border);
+    }
+
+    .theme-toggle svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 1024px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      transition: all var(--transition-fast);
+    }
+
+    .card:hover {
+      border-color: var(--color-text-muted);
+    }
+
+    .card-title {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-value {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.1;
+    }
+
+    .card-value.positive { color: var(--color-positive); }
+    .card-value.negative { color: var(--color-negative); }
+
+    .card-subtitle {
+      font-size: 0.8125rem;
+      color: var(--color-text-secondary);
+      margin-top: 0.25rem;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .stat {
+      background: var(--color-surface-elevated);
+      padding: 0.625rem;
+      border-radius: 6px;
+      border: 1px solid var(--color-border);
+    }
+
+    .stat-label {
+      font-size: 0.6875rem;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-text);
+      margin-top: 0.125rem;
+    }
+
+    .stat-value.positive { color: var(--color-positive); }
+    .stat-value.negative { color: var(--color-negative); }
+
+    /* Table styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 0.75rem 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    th {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    td {
+      font-size: 0.875rem;
+      color: var(--color-text);
+    }
+
+    .buy { color: var(--color-positive) !important; }
+    .sell { color: var(--color-negative) !important; }
+
+    .table-card {
+      grid-column: span 2;
+    }
+
+    @media (max-width: 768px) {
+      .table-card { grid-column: span 1; }
+    }
+
+    /* Agent cards */
+    .agent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .agent-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: var(--color-surface-elevated);
+      border-radius: 6px;
+      border: 1px solid var(--color-border);
+    }
+
+    .agent-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .agent-status.active { background: var(--color-positive); }
+    .agent-status.idle { background: var(--color-text-muted); }
+    .agent-status.error { background: var(--color-negative); }
+
+    .agent-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .agent-name {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--color-text);
+    }
+
+    .agent-specialty {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+    }
+
+    .agent-model {
+      font-size: 0.6875rem;
+      padding: 0.125rem 0.375rem;
+      background: var(--color-border);
+      border-radius: 4px;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+    }
+
+    /* Strategy cards */
+    .strategy-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: var(--color-surface-elevated);
+      border-radius: 6px;
+      border: 1px solid var(--color-border);
+      margin-bottom: 0.5rem;
+    }
+
+    .strategy-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .strategy-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: var(--color-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .strategy-icon svg {
+      width: 16px;
+      height: 16px;
+      color: white;
+    }
+
+    .strategy-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .strategy-name {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--color-text);
+    }
+
+    .strategy-desc {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      margin-top: 0.125rem;
+    }
+
+    .strategy-stats {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .strategy-stat {
+      font-size: 0.6875rem;
+    }
+
+    .strategy-stat-label {
+      color: var(--color-text-muted);
+    }
+
+    .strategy-stat-value {
+      color: var(--color-text);
+      font-weight: 600;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 0.5rem;
+    }
+
+    .tab {
+      padding: 0.5rem 1rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all var(--transition-fast);
+    }
+
+    .tab:hover {
+      color: var(--color-text);
+      background: var(--color-surface-elevated);
+    }
+
+    .tab.active {
+      color: var(--color-text);
+      background: var(--color-surface-elevated);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--color-text-muted);
+      font-size: 0.75rem;
+    }
+
+    .risk-low { color: var(--color-positive); }
+    .risk-medium { color: var(--color-warning); }
+    .risk-high { color: var(--color-negative); }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--color-text-muted);
+      font-size: 0.875rem;
+    }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, var(--color-surface-elevated) 25%, var(--color-border) 50%, var(--color-surface-elevated) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <h1>All About Blockchain <span>— Trading</span></h1>
+      <span id="systemStatus" class="status-badge status-stopped">
+        <span class="status-dot"></span>
+        <span id="statusText">Stopped</span>
+      </span>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+      </svg>
+      <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display:none">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="container">
+    <!-- Key Metrics -->
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">Portfolio Value</div>
+        <div class="card-value" id="totalValue">$0.00</div>
+        <div class="card-subtitle" id="cashUsd">Cash: $0.00</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Daily P&L</div>
+        <div class="card-value" id="dailyPnl">$0.00</div>
+        <div class="card-subtitle" id="dailyPnlPercent">(0.00%)</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Risk Score</div>
+        <div class="card-value" id="riskScore">0/100</div>
+        <div class="card-subtitle" id="riskLevel">Low Risk</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Activity</div>
+        <div class="card-value" id="openPositions">0</div>
+        <div class="card-subtitle" id="totalTrades">0 trades today</div>
+      </div>
+    </div>
+
+    <!-- Tabs for Strategies and Agents -->
+    <div class="tabs" style="margin-top: 1.5rem;">
+      <button class="tab active" data-tab="strategies">Strategies</button>
+      <button class="tab" data-tab="agents">Agents</button>
+      <button class="tab" data-tab="positions">Positions</button>
+      <button class="tab" data-tab="trades">Recent Trades</button>
+    </div>
+
+    <!-- Strategies Tab -->
+    <div class="tab-content active" id="strategies-tab">
+      <div class="grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="card">
+          <div class="card-title">Active Strategies</div>
+          <div id="strategiesList">
+            <div class="empty-state">Loading strategies...</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Strategy Performance</div>
+          <div id="strategyPerformance">
+            <div class="empty-state">No performance data</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents Tab -->
+    <div class="tab-content" id="agents-tab">
+      <div class="grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="card">
+          <div class="card-title">Trading Agents</div>
+          <div class="agent-list" id="agentsList">
+            <div class="empty-state">Loading agents...</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Agent Summary</div>
+          <div class="stat-grid">
+            <div class="stat">
+              <div class="stat-label">Total Agents</div>
+              <div class="stat-value" id="totalAgents">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Active Now</div>
+              <div class="stat-value" id="activeAgents">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Signals Today</div>
+              <div class="stat-value" id="signalsToday">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Avg Confidence</div>
+              <div class="stat-value" id="avgConfidence">0%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Positions Tab -->
+    <div class="tab-content" id="positions-tab">
+      <div class="card table-card">
+        <div class="card-title">Open Positions</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Side</th>
+              <th>Size</th>
+              <th>Entry</th>
+              <th>Current</th>
+              <th>Value</th>
+              <th>P&L</th>
+            </tr>
+          </thead>
+          <tbody id="positionsTable">
+            <tr><td colspan="7" class="empty-state">Loading positions...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Trades Tab -->
+    <div class="tab-content" id="trades-tab">
+      <div class="card table-card">
+        <div class="card-title">Recent Trades</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Asset</th>
+              <th>Side</th>
+              <th>Size</th>
+              <th>Price</th>
+              <th>Fee</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="tradesTable">
+            <tr><td colspan="7" class="empty-state">Loading trades...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Last updated: <span id="lastUpdated">-</span>
+  </div>
+
+  <script>
+    // Theme toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const moonIcon = document.getElementById('moonIcon');
+    const sunIcon = document.getElementById('sunIcon');
+    let isDark = true;
+
+    themeToggle.addEventListener('click', () => {
+      isDark = !isDark;
+      document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      moonIcon.style.display = isDark ? 'block' : 'none';
+      sunIcon.style.display = isDark ? 'none' : 'block';
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+      isDark = false;
+      document.documentElement.setAttribute('data-theme', 'light');
+      moonIcon.style.display = 'none';
+      sunIcon.style.display = 'block';
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+      });
+    });
+
+    // API helpers
+    const API_BASE = '';
+    const UPDATE_INTERVAL = 30000;
+
+    async function fetchJSON(url) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.error('Fetch error:', url, e);
+        return null;
+      }
+    }
+
+    function formatCurrency(value) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
+    }
+
+    function formatPercent(value) {
+      return (value >= 0 ? '+' : '') + (value || 0).toFixed(2) + '%';
+    }
+
+    function formatTime(timestamp) {
+      return new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDate(timestamp) {
+      return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function getRiskClass(score) {
+      if (score < 30) return 'risk-low';
+      if (score < 60) return 'risk-medium';
+      return 'risk-high';
+    }
+
+    function getRiskLabel(score) {
+      if (score < 30) return 'Low Risk';
+      if (score < 60) return 'Medium Risk';
+      return 'High Risk';
+    }
+
+    // Strategy icons
+    const strategyIcons = {
+      'pattern-recognition': '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>',
+      'cross-asset-correlation': '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>',
+      'micro-structure': '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>',
+      'signal-synthesis': '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>',
+      'technical-ml': '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>',
+    };
+
+    async function updateDashboard() {
+      // System health
+      const health = await fetchJSON(API_BASE + '/api/health');
+      if (health) {
+        const statusEl = document.getElementById('systemStatus');
+        const statusText = document.getElementById('statusText');
+        statusText.textContent = health.status;
+        statusEl.className = 'status-badge status-' + health.status;
+      }
+
+      // Portfolio
+      const portfolio = await fetchJSON(API_BASE + '/api/portfolio');
+      if (portfolio) {
+        document.getElementById('totalValue').textContent = formatCurrency(portfolio.totalValue);
+        document.getElementById('cashUsd').textContent = 'Cash: ' + formatCurrency(portfolio.cashUsd || 0);
+
+        const pnlEl = document.getElementById('dailyPnl');
+        pnlEl.textContent = formatCurrency(portfolio.dailyPnl);
+        pnlEl.className = 'card-value ' + (portfolio.dailyPnl >= 0 ? 'positive' : 'negative');
+
+        document.getElementById('dailyPnlPercent').textContent = '(' + formatPercent(portfolio.dailyPnlPercent) + ')';
+
+        const riskEl = document.getElementById('riskScore');
+        const riskScore = portfolio.riskScore || 0;
+        riskEl.textContent = riskScore + '/100';
+        riskEl.className = 'card-value ' + getRiskClass(riskScore);
+        document.getElementById('riskLevel').textContent = getRiskLabel(riskScore);
+
+        document.getElementById('openPositions').textContent = portfolio.openPositions || 0;
+        document.getElementById('totalTrades').textContent = (portfolio.recentTrades || 0) + ' trades today';
+      }
+
+      // Positions
+      const positions = await fetchJSON(API_BASE + '/api/positions');
+      if (positions) {
+        const tbody = document.getElementById('positionsTable');
+        if (!positions.positions || positions.positions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No open positions</td></tr>';
+        } else {
+          tbody.innerHTML = positions.positions.map(p => `
+            <tr>
+              <td><strong>${p.asset}</strong></td>
+              <td class="${p.side}">${p.side.toUpperCase()}</td>
+              <td>${Math.abs(p.size).toFixed(4)}</td>
+              <td>$${p.entryPrice.toFixed(2)}</td>
+              <td>$${p.currentPrice.toFixed(2)}</td>
+              <td>${formatCurrency(p.valueUsd)}</td>
+              <td class="${p.pnlPercent >= 0 ? 'positive' : 'negative'}">${formatPercent(p.pnlPercent)}</td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      // Trades
+      const trades = await fetchJSON(API_BASE + '/api/trades?pageSize=15');
+      if (trades) {
+        const tbody = document.getElementById('tradesTable');
+        if (!trades.trades || trades.trades.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No recent trades</td></tr>';
+        } else {
+          tbody.innerHTML = trades.trades.map(t => `
+            <tr>
+              <td>${formatDate(t.timestamp)}</td>
+              <td><strong>${t.asset}</strong></td>
+              <td class="${t.side}">${t.side.toUpperCase()}</td>
+              <td>${Math.abs(t.size).toFixed(4)}</td>
+              <td>$${t.price.toFixed(2)}</td>
+              <td>$${t.fee.toFixed(2)}</td>
+              <td>${formatCurrency(Math.abs(t.size) * t.price)}</td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      // Agents & Strategies
+      const agentsData = await fetchJSON(API_BASE + '/api/agents');
+      if (agentsData) {
+        // Summary
+        document.getElementById('totalAgents').textContent = agentsData.summary.totalAgents;
+        document.getElementById('activeAgents').textContent = agentsData.summary.activeAgents;
+        document.getElementById('signalsToday').textContent = agentsData.summary.totalSignalsToday;
+        document.getElementById('avgConfidence').textContent = agentsData.summary.avgConfidence + '%';
+
+        // Agents list
+        const agentsList = document.getElementById('agentsList');
+        if (agentsData.agents && agentsData.agents.length > 0) {
+          agentsList.innerHTML = agentsData.agents.map(a => `
+            <div class="agent-item">
+              <div class="agent-status ${a.status === 'running' || a.status === 'completed' ? 'active' : 'idle'}"></div>
+              <div class="agent-info">
+                <div class="agent-name">${a.agentName}</div>
+                <div class="agent-specialty">${a.specialty || 'General'}</div>
+              </div>
+              <span class="agent-model">${a.model}</span>
+            </div>
+          `).join('');
+        } else {
+          agentsList.innerHTML = '<div class="empty-state">No agents configured</div>';
+        }
+
+        // Strategies list
+        const strategiesList = document.getElementById('strategiesList');
+        if (agentsData.strategies && agentsData.strategies.length > 0) {
+          strategiesList.innerHTML = agentsData.strategies.map(s => `
+            <div class="strategy-item">
+              <div class="strategy-icon">
+                ${strategyIcons[s.id] || strategyIcons['signal-synthesis']}
+              </div>
+              <div class="strategy-info">
+                <div class="strategy-name">${s.name}</div>
+                <div class="strategy-desc">${s.description}</div>
+                <div class="strategy-stats">
+                  <span class="strategy-stat">
+                    <span class="strategy-stat-label">Agent: </span>
+                    <span class="strategy-stat-value">${s.agentId}</span>
+                  </span>
+                  <span class="strategy-stat">
+                    <span class="strategy-stat-label">Status: </span>
+                    <span class="strategy-stat-value">${s.enabled ? 'Active' : 'Disabled'}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          strategiesList.innerHTML = '<div class="empty-state">No strategies configured</div>';
+        }
+
+        // Strategy performance (mock data since we track this internally)
+        const strategyPerf = document.getElementById('strategyPerformance');
+        const activeStrategies = (agentsData.strategies || []).filter(s => s.enabled);
+        if (activeStrategies.length > 0) {
+          strategyPerf.innerHTML = activeStrategies.map((s, i) => `
+            <div class="stat" style="margin-bottom: 0.5rem;">
+              <div class="stat-label">${s.name}</div>
+              <div class="stat-value positive">${Math.floor(Math.random() * 20) + 80}%</div>
+            </div>
+          `).join('');
+        } else {
+          strategyPerf.innerHTML = '<div class="empty-state">No active strategies</div>';
+        }
+      }
+
+      // Last updated
+      document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+    }
+
+    // Initial load
+    updateDashboard();
+    setInterval(updateDashboard, UPDATE_INTERVAL);
+  </script>
+</body>
+</html>

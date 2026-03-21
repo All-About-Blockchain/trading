@@ -10,6 +10,7 @@ import { GeminiAgent } from './GeminiAgent';
 import { MiniMaxAgent } from './MiniMaxAgent';
 import { EnsembleAgent } from './EnsembleAgent';
 import { MLAgent } from './MLAgent';
+import { MomentumAgent } from './MomentumAgent';
 import { logger } from '../utils/logger';
 
 // Default agent configurations
