@@ -19,6 +19,7 @@ interface MeanReversionParams {
     holdingPeriod: number;
 }
 export declare class MeanReversionAgent extends BaseAgent {
+    readonly name: string;
     private params;
     private assetHistories;
     constructor(name?: string, params?: Partial<MeanReversionParams>);

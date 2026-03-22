@@ -24,6 +24,7 @@ export interface TradingConfig {
         weeklyLossLimit: number;
         totalLossLimit: number;
         emergencyReservePercent: number;
+        minPositionSize: number;
     };
     database: {
         postgres: {

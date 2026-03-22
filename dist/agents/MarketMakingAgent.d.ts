@@ -13,6 +13,7 @@ interface MarketMakingConfig {
 }
 export declare class MarketMakingAgent extends BaseAgent {
     private mmConfig;
+    constructor();
     private lastRefresh;
     /**
      * Analyze markets and generate market making signals

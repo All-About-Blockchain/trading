@@ -40,6 +40,7 @@ export interface MarketData {
     bid: number;
     ask: number;
     last: number;
+    price?: number;
     volume24h: number;
     fundingRate: number;
     openInterest: number;
@@ -55,9 +56,10 @@ export interface Signal {
     stopLoss?: number;
     takeProfit?: number;
     price?: number;
-    reasoning: string;
-    modelSource: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
-    timestamp: number;
+    reasoning?: string;
+    reason?: string;
+    modelSource?: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
+    timestamp?: number;
 }
 export interface Portfolio {
     totalValueUsd: number;

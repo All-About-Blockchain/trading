@@ -45,6 +45,7 @@ export interface MarketData {
   bid: number;
   ask: number;
   last: number;
+  price?: number; // Alias for last (used in some agents)
   volume24h: number;
   fundingRate: number;
   openInterest: number;
@@ -61,9 +62,10 @@ export interface Signal {
   stopLoss?: number;
   takeProfit?: number;
   price?: number; // Current asset price
-  reasoning: string;
-  modelSource: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
-  timestamp: number;
+  reasoning?: string;
+  reason?: string; // Alias for reasoning (used in some agents)
+  modelSource?: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
+  timestamp?: number;
 }
 
 export interface Portfolio {

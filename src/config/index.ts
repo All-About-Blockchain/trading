@@ -36,6 +36,7 @@ export interface TradingConfig {
     weeklyLossLimit: number;        // % - triggers pause
     totalLossLimit: number;         // % - triggers full stop
     emergencyReservePercent: number; // USDC reserve %
+    minPositionSize: number;       // Minimum position size in USD
   };
   
   // Database
@@ -94,6 +95,7 @@ export const config: TradingConfig = {
     weeklyLossLimit: 0.10,         // 10%
     totalLossLimit: 0.20,           // 20%
     emergencyReservePercent: 0.10,  // 10%
+    minPositionSize: 10,           // $10 minimum
   },
   
   database: {

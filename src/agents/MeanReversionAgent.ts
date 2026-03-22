@@ -25,6 +25,7 @@ interface MeanReversionParams {
 }
 
 export class MeanReversionAgent extends BaseAgent {
+  public readonly name: string;
   private params: MeanReversionParams;
   private assetHistories: Map<string, number[]> = new Map();
 
@@ -32,7 +33,15 @@ export class MeanReversionAgent extends BaseAgent {
     name: string = 'MeanReversion',
     params: Partial<MeanReversionParams> = {}
   ) {
-    super(name);
+    super({
+      id: `mean-reversion-${Date.now()}`,
+      name,
+      enabled: true,
+      model: 'gpt',
+      specialty: 'mean-reversion',
+      maxPositionPercent: 0.1,
+    });
+    this.name = name;
     this.params = {
       lookbackPeriod: params.lookbackPeriod || 20,
       entryThreshold: params.entryThreshold || 2,
@@ -50,7 +59,7 @@ export class MeanReversionAgent extends BaseAgent {
 
     for (const [asset, data] of marketData) {
       try {
-        const signal = await this.analyzeAsset(asset, data, positions.get(asset));
+        const signal = await this.analyzeAsset(asset, data, positions.get(asset), portfolio);
         if (signal) {
           signals.push(signal);
         }
@@ -68,7 +77,8 @@ export class MeanReversionAgent extends BaseAgent {
   private async analyzeAsset(
     asset: string,
     data: MarketData,
-    currentPosition: any
+    currentPosition: any,
+    portfolio: Portfolio
   ): Promise<Signal | null> {
     // Get historical prices
     const history = await this.getPriceHistory(asset);
@@ -83,7 +93,7 @@ export class MeanReversionAgent extends BaseAgent {
     const stdDev = Math.sqrt(variance);
 
     // Calculate current distance from MA
-    const currentPrice = data.price;
+    const currentPrice = data.price ?? data.last;
     const zScore = (currentPrice - ma) / stdDev;
 
     // Check if we have a position
@@ -119,7 +129,7 @@ export class MeanReversionAgent extends BaseAgent {
     // Entry signal: price significantly below MA (oversold)
     if (zScore <= -this.params.entryThreshold) {
       // Calculate position size based on available capital
-      const positionSize = this.calculatePositionSize(portfolio, data.price, Math.abs(zScore));
+      const positionSize = this.calculatePositionSize(portfolio, data.price ?? data.last, Math.abs(zScore));
       
       if (positionSize > config.risk.minPositionSize) {
         return {

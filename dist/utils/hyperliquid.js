@@ -33,27 +33,43 @@ class HyperliquidClient {
         return this.address;
     }
     async getBalance() {
+        let totalBalance = 0;
         try {
+            // Get cross margin (futures) balance
             const response = await axios_1.default.post(this.apiUrl + '/info', {
-                type: 'userState',
+                type: 'clearinghouseState',
                 user: this.address
             }, {
                 headers: { 'Content-Type': 'application/json' }
             });
-            if (response.data?.marginSummary) {
-                return {
-                    available: parseFloat(response.data.marginSummary.total) || 0,
-                    total: parseFloat(response.data.marginSummary.total) || 0
-                };
+            if (response.data?.withdrawable) {
+                totalBalance += parseFloat(response.data.withdrawable) || 0;
             }
         }
         catch (e) {
-            logger_1.logger.warn('API balance check failed, using configured value');
+            logger_1.logger.warn('Failed to get cross margin balance:', e);
         }
-        // Return mock balance for testnet
+        try {
+            // Get spot wallet balance
+            const spotResponse = await axios_1.default.post(this.apiUrl + '/info', {
+                type: 'spotClearinghouseState',
+                user: this.address
+            }, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (spotResponse.data?.balances) {
+                const usdcBalance = spotResponse.data.balances.find((b) => b.coin === 'USDC');
+                if (usdcBalance && usdcBalance.total) {
+                    totalBalance += parseFloat(usdcBalance.total) || 0;
+                }
+            }
+        }
+        catch (e) {
+            logger_1.logger.warn('Failed to get spot balance:', e);
+        }
         return {
-            available: 19.80,
-            total: 19.80
+            available: totalBalance,
+            total: totalBalance
         };
     }
     async getMarkets() {

@@ -197,6 +197,21 @@ app.get('/api/system', (_req, res) => {
         timestamp: Date.now(),
     });
 });
+// Wallet info endpoint
+app.get('/api/wallet', (_req, res) => {
+    res.json({
+        address: hyperliquid_1.hyperliquid.getAddress(),
+        network: config_1.config.hyperliquid.network,
+        isInitialized: hyperliquid_1.hyperliquid.isInitialized(),
+        timestamp: Date.now(),
+    });
+});
+// Initialize hyperliquid client
+hyperliquid_1.hyperliquid.initialize().then(() => {
+    logger_1.logger.info(`Hyperliquid client initialized: ${hyperliquid_1.hyperliquid.getAddress()}`);
+}).catch((err) => {
+    logger_1.logger.error('Failed to initialize hyperliquid client:', err);
+});
 // Initialize agent activity tracker
 AgentActivityTracker_1.agentActivityTracker.initializeFromConfigs(agents_1.agentFactory.getAgentStatuses());
 // Agent status endpoint

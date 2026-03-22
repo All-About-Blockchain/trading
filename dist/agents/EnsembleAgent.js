@@ -62,13 +62,13 @@ class EnsembleAgent extends BaseAgent_1.BaseAgent {
                 action = 'buy';
                 finalConfidence = buyWeight;
                 finalTargetSize = this.calculatePositionSize(buySignals, portfolio);
-                reasons.push(...buySignals.map(s => s.reasoning));
+                reasons.push(...buySignals.map(s => s.reasoning || s.reason || ''));
             }
             else if (sellWeight > buyWeight && sellWeight > 0.3) {
                 action = 'sell';
                 finalConfidence = sellWeight;
                 finalTargetSize = this.calculatePositionSize(sellSignals, portfolio);
-                reasons.push(...sellSignals.map(s => s.reasoning));
+                reasons.push(...sellSignals.map(s => s.reasoning || s.reason || ''));
             }
             if (action !== 'hold') {
                 // Get common take profit / stop loss from signals
@@ -117,7 +117,7 @@ class EnsembleAgent extends BaseAgent_1.BaseAgent {
         let totalWeight = 0;
         let weightedSum = 0;
         for (const signal of signals) {
-            const modelWeight = this.modelWeights[signal.modelSource] || 0.25;
+            const modelWeight = this.modelWeights[signal.modelSource || 'gpt'] || 0.25;
             weightedSum += signal.confidence * modelWeight;
             totalWeight += modelWeight;
         }

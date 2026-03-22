@@ -18,8 +18,16 @@ const logger_1 = require("../utils/logger");
 const BaseAgent_1 = require("./BaseAgent");
 class MeanReversionAgent extends BaseAgent_1.BaseAgent {
     constructor(name = 'MeanReversion', params = {}) {
-        super(name);
+        super({
+            id: `mean-reversion-${Date.now()}`,
+            name,
+            enabled: true,
+            model: 'gpt',
+            specialty: 'mean-reversion',
+            maxPositionPercent: 0.1,
+        });
         this.assetHistories = new Map();
+        this.name = name;
         this.params = {
             lookbackPeriod: params.lookbackPeriod || 20,
             entryThreshold: params.entryThreshold || 2,
@@ -35,7 +43,7 @@ class MeanReversionAgent extends BaseAgent_1.BaseAgent {
         const positions = new Map(portfolio.positions.map(p => [p.asset, p]));
         for (const [asset, data] of marketData) {
             try {
-                const signal = await this.analyzeAsset(asset, data, positions.get(asset));
+                const signal = await this.analyzeAsset(asset, data, positions.get(asset), portfolio);
                 if (signal) {
                     signals.push(signal);
                 }
@@ -49,7 +57,7 @@ class MeanReversionAgent extends BaseAgent_1.BaseAgent {
     /**
      * Analyze a single asset for mean reversion opportunity
      */
-    async analyzeAsset(asset, data, currentPosition) {
+    async analyzeAsset(asset, data, currentPosition, portfolio) {
         // Get historical prices
         const history = await this.getPriceHistory(asset);
         if (history.length < this.params.lookbackPeriod) {
@@ -61,7 +69,7 @@ class MeanReversionAgent extends BaseAgent_1.BaseAgent {
         const variance = recentPrices.reduce((sum, p) => sum + Math.pow(p - ma, 2), 0) / recentPrices.length;
         const stdDev = Math.sqrt(variance);
         // Calculate current distance from MA
-        const currentPrice = data.price;
+        const currentPrice = data.price ?? data.last;
         const zScore = (currentPrice - ma) / stdDev;
         // Check if we have a position
         if (currentPosition) {
@@ -93,7 +101,7 @@ class MeanReversionAgent extends BaseAgent_1.BaseAgent {
         // Entry signal: price significantly below MA (oversold)
         if (zScore <= -this.params.entryThreshold) {
             // Calculate position size based on available capital
-            const positionSize = this.calculatePositionSize(portfolio, data.price, Math.abs(zScore));
+            const positionSize = this.calculatePositionSize(portfolio, data.price ?? data.last, Math.abs(zScore));
             if (positionSize > config_1.config.risk.minPositionSize) {
                 return {
                     asset,

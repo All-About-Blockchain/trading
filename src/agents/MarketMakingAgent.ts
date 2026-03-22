@@ -28,6 +28,17 @@ export class MarketMakingAgent extends BaseAgent {
     maxOrderSize: 1000,        // Max $1000
     refreshIntervalMs: 60000,   // Refresh every minute
   };
+
+  constructor() {
+    super({
+      id: `market-making-${Date.now()}`,
+      name: 'MarketMaking',
+      enabled: true,
+      model: 'gpt',
+      specialty: 'market-making',
+      maxPositionPercent: 0.1,
+    });
+  }
   
   private lastRefresh: number = 0;
   
@@ -100,7 +111,7 @@ export class MarketMakingAgent extends BaseAgent {
    * Get current configuration
    */
   getMMConfig(): MarketMakingConfig {
-    return this.config;
+    return this.mmConfig;
   }
   
   /**

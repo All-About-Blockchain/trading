@@ -9,7 +9,14 @@ const BaseAgent_1 = require("./BaseAgent");
 const logger_1 = require("../utils/logger");
 class MarketMakingAgent extends BaseAgent_1.BaseAgent {
     constructor() {
-        super(...arguments);
+        super({
+            id: `market-making-${Date.now()}`,
+            name: 'MarketMaking',
+            enabled: true,
+            model: 'gpt',
+            specialty: 'market-making',
+            maxPositionPercent: 0.1,
+        });
         this.mmConfig = {
             spreadPercent: 0.1, // 0.1% spread
             maxPositionPercent: 0.1, // Max 10% of portfolio
@@ -72,7 +79,7 @@ class MarketMakingAgent extends BaseAgent_1.BaseAgent {
      * Get current configuration
      */
     getMMConfig() {
-        return this.config;
+        return this.mmConfig;
     }
     /**
      * Calculate optimal spread based on market conditions

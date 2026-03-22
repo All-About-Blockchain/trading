@@ -39,6 +39,7 @@ exports.config = {
         weeklyLossLimit: 0.10, // 10%
         totalLossLimit: 0.20, // 20%
         emergencyReservePercent: 0.10, // 10%
+        minPositionSize: 10, // $10 minimum
     },
     database: {
         postgres: {
