@@ -435,6 +435,14 @@
       display: block;
     }
 
+    /* JSON Syntax Highlighting */
+    #apiResponse span { font-family: 'Fira Code', 'Monaco', 'Consolas', monospace; font-size: 0.7rem; }
+    #apiResponse .key { color: #7dd3fc; }
+    #apiResponse .string { color: #86efac; }
+    #apiResponse .number { color: #fcd34d; }
+    #apiResponse .boolean { color: #c4b5fd; }
+    #apiResponse .null { color: #f87171; }
+
     .footer {
       text-align: center;
       padding: 1.5rem;
@@ -531,6 +539,7 @@
       <button class="tab" data-tab="agents">Agents</button>
       <button class="tab" data-tab="positions">Positions</button>
       <button class="tab" data-tab="trades">Recent Trades</button>
+      <button class="tab" data-tab="api">API</button>
     </div>
 
     <!-- Strategies Tab -->
@@ -629,6 +638,24 @@
         </table>
       </div>
     </div>
+
+    <!-- API Tab -->
+    <div class="tab-content" id="api-tab">
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="card">
+          <div class="card-title">API Endpoints</div>
+          <div id="apiEndpointsList">
+            <div class="empty-state">Loading endpoints...</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Endpoint Details</div>
+          <div id="apiEndpointDetails">
+            <div class="empty-state">Select an endpoint to view details</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="footer">
@@ -669,8 +696,12 @@
       });
     });
 
-    // API helpers
-    const API_BASE = '';
+    // API helpers - detect base path from URL for subdirectory hosting
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    const basePath = pathParts.length > 0 && !pathParts[0].startsWith('api') && !pathParts[0].includes('.') 
+      ? '/' + pathParts[0] 
+      : '';
+    const API_BASE = basePath;
     const UPDATE_INTERVAL = 30000;
 
     async function fetchJSON(url) {
@@ -710,6 +741,56 @@
       if (score < 30) return 'Low Risk';
       if (score < 60) return 'Medium Risk';
       return 'High Risk';
+    }
+
+    function showEndpointDetails(path, method, desc) {
+      const details = document.getElementById('apiEndpointDetails');
+      const methodColors = { 'GET': '#61affe', 'POST': '#49cc90', 'PUT': '#fca130', 'DELETE': '#f93e3e' };
+      details.innerHTML = `
+        <div style="padding: 1rem;">
+          <div style="margin-bottom: 1rem;">
+            <span style="background: ${methodColors[method] || '#666'}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${method}</span>
+            <span style="font-family: monospace; margin-left: 0.5rem; font-size: 0.875rem;">${path}</span>
+          </div>
+          <div style="color: var(--color-text-secondary); font-size: 0.875rem;">${desc}</div>
+          <button onclick="testEndpoint('${path}')" style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-accent); color: var(--bg-primary); border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Test Endpoint</button>
+          <div id="apiResponse" style="margin-top: 1rem; padding: 0.5rem; background: var(--color-surface-elevated); border-radius: 4px; font-family: monospace; font-size: 0.75rem; max-height: 300px; overflow: auto; display: none; white-space: pre;"></div>
+        </div>
+      `;
+    }
+
+    async function testEndpoint(path) {
+      const responseDiv = document.getElementById('apiResponse');
+      responseDiv.style.display = 'block';
+      responseDiv.innerHTML = '<span style="color: var(--color-text-muted);">Loading...</span>';
+      try {
+        const res = await fetch(API_BASE + path);
+        const data = await res.json();
+        // Pretty print with syntax highlighting
+        const json = JSON.stringify(data, null, 2);
+        responseDiv.innerHTML = syntaxHighlight(json);
+      } catch (e) {
+        responseDiv.innerHTML = '<span style="color: var(--color-negative);">Error: ' + e.message + '</span>';
+      }
+    }
+
+    function syntaxHighlight(json) {
+      json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        let cls = 'number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'key';
+          } else {
+            cls = 'string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'boolean';
+        } else if (/null/.test(match)) {
+          cls = 'null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
     }
 
     // Strategy icons
@@ -940,6 +1021,27 @@
 
       // Last updated
       document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+      
+      // Load API endpoints
+      const apiEndpointsList = document.getElementById('apiEndpointsList');
+      if (apiEndpointsList) {
+        const endpoints = [
+          { path: '/api/health', method: 'GET', desc: 'System health status' },
+          { path: '/api/portfolio', method: 'GET', desc: 'Portfolio summary with P&L' },
+          { path: '/api/positions', method: 'GET', desc: 'Open positions details' },
+          { path: '/api/trades', method: 'GET', desc: 'Recent trade history' },
+          { path: '/api/agents', method: 'GET', desc: 'Agent status and activities' },
+          { path: '/api/strategies', method: 'GET', desc: 'Strategy configurations' },
+          { path: '/api/performance', method: 'GET', desc: 'Performance reports' },
+          { path: '/api/wallet', method: 'GET', desc: 'Wallet address and network' },
+        ];
+        apiEndpointsList.innerHTML = endpoints.map(e => `
+          <div class="endpoint-item" style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--color-border);" onclick="showEndpointDetails('${e.path}', '${e.method}', '${e.desc}')">
+            <span style="color: var(--color-accent); font-weight: 600;">${e.method}</span>
+            <span style="margin-left: 0.5rem; font-family: monospace;">${e.path}</span>
+          </div>
+        `).join('');
+      }
       
       // Update performance chart
       updatePerformanceChart();

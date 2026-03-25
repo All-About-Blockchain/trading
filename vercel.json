@@ -16,6 +16,22 @@
       "dest": "dist/dashboard-server.js"
     },
     {
+      "src": "/trading/api/(.*)",
+      "dest": "dist/dashboard-server.js"
+    },
+    {
+      "src": "/trading/dashboard",
+      "dest": "dist/dashboard/index.html"
+    },
+    {
+      "src": "/trading/dashboard/(.*)",
+      "dest": "dist/dashboard/$1"
+    },
+    {
+      "src": "/trading/(.*)",
+      "dest": "dist/dashboard/index.html"
+    },
+    {
       "src": "/dashboard",
       "dest": "dist/dashboard/index.html"
     },

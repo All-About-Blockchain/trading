@@ -77,7 +77,7 @@ class TradingSystem {
                     logger_1.logger.warn(`Failed to get market data for ${asset}`, { error });
                 }
             }
-            logger_1.logger.debug(`Collected market data for ${marketData.size} assets`);
+            logger_1.logger.info(`Collected market data for ${marketData.size} assets`);
         }
         catch (error) {
             logger_1.logger.error('Failed to collect market data', { error });

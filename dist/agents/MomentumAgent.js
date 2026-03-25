@@ -15,7 +15,7 @@ class MomentumIndicators {
      * Calculate RSI
      */
     static rsi(prices, period = 14) {
-        if (prices.length < period + 1)
+        if (!prices || prices.length < period + 1)
             return 50;
         let gains = 0;
         let losses = 0;
@@ -101,7 +101,35 @@ class MomentumAgent extends BaseAgent_1.BaseAgent {
     constructor(config) {
         super(config);
         this.priceHistory = new Map();
+        this.initialized = false;
         this.tradeLog = [];
+    }
+    /**
+     * Initialize with seed historical data for demo
+     */
+    initializeSeedData() {
+        if (this.initialized)
+            return;
+        // Seed with sample data for major assets
+        const seedAssets = {
+            'BTC': [66500, 66800, 67100, 66900, 67200, 67500, 67100, 66800, 67000, 67300, 67197],
+            'ETH': [2050, 2060, 2080, 2070, 2090, 2100, 2085, 2070, 2088, 2095, 2088.45],
+            'SOL': [85, 86, 87.5, 86.5, 88, 89, 87, 85.5, 87, 88, 87.677],
+            'AVAX': [8.9, 9.0, 9.1, 8.95, 9.05, 9.15, 9.0, 8.85, 9.0, 9.1, 9.0669],
+            'ARB': [0.091, 0.092, 0.093, 0.092, 0.094, 0.095, 0.093, 0.091, 0.092, 0.093, 0.09297],
+        };
+        for (const [asset, prices] of Object.entries(seedAssets)) {
+            const history = {
+                prices: prices,
+                highs: prices.map(p => p * 1.002),
+                lows: prices.map(p => p * 0.998),
+                volumes: prices.map(() => 1000000),
+                timestamps: prices.map((_, i) => Date.now() - (prices.length - i) * 60000),
+            };
+            this.priceHistory.set(asset, history);
+        }
+        this.initialized = true;
+        logger_1.logger.info('Momentum agent initialized with seed data');
     }
     /**
      * Update price history for an asset
@@ -137,9 +165,11 @@ class MomentumAgent extends BaseAgent_1.BaseAgent {
      * Analyze market and generate momentum signals
      */
     async analyze(marketData, portfolio) {
+        // Initialize seed data on first run
+        this.initializeSeedData();
         const signals = [];
-        // Focus on major assets
-        const assets = ['BTC', 'ETH', 'SOL', 'AVAX', 'ARB', 'MATIC', 'LINK'];
+        // Use assets from marketData
+        const assets = Array.from(marketData.keys());
         for (const asset of assets) {
             const data = marketData.get(asset);
             if (!data)
@@ -147,13 +177,14 @@ class MomentumAgent extends BaseAgent_1.BaseAgent {
             // Update price history
             this.updateHistory(asset, data);
             const history = this.priceHistory.get(asset);
-            if (!history || history.prices.length < 20) {
+            if (!history || history.prices.length < 5) {
                 logger_1.logger.debug(`Insufficient history for ${asset}`);
                 continue;
             }
             // Calculate momentum indicators
             const indicators = MomentumIndicators.calculate(history.prices);
             // Generate signal
+            logger_1.logger.info(`Momentum agent: ${asset} indicators - RSI:${indicators.rsi.toFixed(1)}, ROC:${indicators.roc.toFixed(1)}%, trend:${indicators.trend}`);
             const signal = this.generateMomentumSignal(asset, data, portfolio, indicators, this.getPosition(portfolio, asset));
             if (signal) {
                 signals.push(signal);
@@ -184,20 +215,20 @@ class MomentumAgent extends BaseAgent_1.BaseAgent {
             score -= 1;
             reasons.push(`RSI bullish (${indicators.rsi.toFixed(1)})`);
         }
-        // Rate of change
-        if (indicators.roc > 5) {
+        // Rate of change - more sensitive for demo
+        if (indicators.roc > 3) {
             score += 2;
             reasons.push(`Strong ROC +${indicators.roc.toFixed(1)}%`);
         }
-        else if (indicators.roc < -5) {
+        else if (indicators.roc < -3) {
             score -= 2;
             reasons.push(`Strong ROC ${indicators.roc.toFixed(1)}%`);
         }
-        else if (indicators.roc > 2) {
+        else if (indicators.roc > 1.5) {
             score += 1;
             reasons.push(`Positive ROC +${indicators.roc.toFixed(1)}%`);
         }
-        else if (indicators.roc < -2) {
+        else if (indicators.roc < -1.5) {
             score -= 1;
             reasons.push(`Negative ROC ${indicators.roc.toFixed(1)}%`);
         }

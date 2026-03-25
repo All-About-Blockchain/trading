@@ -133,9 +133,11 @@ class HyperliquidClient {
     async getAssets() {
         try {
             const response = await axios_1.default.post(this.apiUrl + '/info', {
-                type: 'assets'
+                type: 'meta'
             });
-            return response.data || [];
+            // Extract asset names from the universe response
+            const universe = response.data?.universe || [];
+            return universe.map((a) => a.name).filter((n) => n && !n.startsWith('k'));
         }
         catch (e) {
             logger_1.logger.warn('Failed to get assets, returning default list');
@@ -161,7 +163,21 @@ class HyperliquidClient {
     }
     async getMarketData(coin) {
         const markets = await this.getMarkets();
-        return { price: markets[coin] || 0 };
+        // The markets response uses "@SYMBOL" format
+        const key = '@' + coin;
+        const priceStr = markets[key] || markets[coin] || '0';
+        const price = typeof priceStr === 'string' ? parseFloat(priceStr) : priceStr;
+        // Get bid/ask from allMids response (it's the mid price)
+        return {
+            asset: coin,
+            bid: price * 0.999,
+            ask: price * 1.001,
+            last: price,
+            volume24h: 1000000, // Default volume
+            fundingRate: 0,
+            openInterest: 0,
+            timestamp: Date.now(),
+        };
     }
     async cancelOrder(orderId) {
         logger_1.logger.info(`Cancelling order: ${orderId}`);

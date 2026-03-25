@@ -97,7 +97,7 @@ class TradingSystem {
         }
       }
       
-      logger.debug(`Collected market data for ${marketData.size} assets`);
+      logger.info(`Collected market data for ${marketData.size} assets`);
     } catch (error) {
       logger.error('Failed to collect market data', { error });
     }

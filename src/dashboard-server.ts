@@ -18,6 +18,7 @@ import { logger } from './utils/logger';
 import { config } from './config';
 import { agentActivityTracker } from './agents/AgentActivityTracker';
 import { agentFactory } from './agents';
+import { paperclipClient } from './utils/paperclip';
 
 const app = express();
 const PORT = process.env.DASHBOARD_PORT || 3000;
@@ -54,6 +55,22 @@ if (AUTH_ENABLED) {
 let systemStatus: 'running' | 'stopped' | 'error' = 'stopped';
 let lastUpdate: number = 0;
 let lastError: string | null = null;
+
+// Configure Paperclip client
+const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL;
+const PAPERCLIP_API_KEY = process.env.PAPERCLIP_API_KEY;
+const PAPERCLIP_COMPANY_ID = process.env.PAPERCLIP_COMPANY_ID;
+
+if (PAPERCLIP_API_URL && PAPERCLIP_API_KEY && PAPERCLIP_COMPANY_ID) {
+  paperclipClient.configure({
+    apiUrl: PAPERCLIP_API_URL,
+    apiKey: PAPERCLIP_API_KEY,
+    companyId: PAPERCLIP_COMPANY_ID,
+  });
+  logger.info('Paperclip client configured for dashboard');
+} else {
+  logger.warn('Paperclip API not configured - agents will not be fetched from Paperclip');
+}
 
 // Health check endpoint (unauthenticated for monitoring)
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -190,12 +207,61 @@ hlClient.initialize().then(() => {
 agentActivityTracker.initializeFromConfigs(agentFactory.getAgentStatuses());
 
 // Agent status endpoint
-app.get('/api/agents', (_req: Request, res: Response) => {
+app.get('/api/agents', async (_req: Request, res: Response) => {
   const data = agentActivityTracker.getDashboardData();
+  
+  // Fetch Paperclip agents if configured
+  let paperclipAgents: any[] = [];
+  if (paperclipClient.isConfigured()) {
+    try {
+      paperclipAgents = await paperclipClient.fetchAgents();
+    } catch (err) {
+      logger.error('Failed to fetch Paperclip agents', { error: err });
+    }
+  }
+  
+  // Transform Paperclip agents to match dashboard format
+  const transformedPaperclipAgents = paperclipAgents.map(agent => ({
+    agentId: agent.id,
+    agentName: agent.name,
+    model: agent.role,
+    specialty: agent.capabilities || agent.title || agent.role,
+    status: agent.status,
+    lastRun: agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).getTime() : null,
+    lastRunDuration: null,
+    signalsGenerated: 0,
+    tradesRecommended: 0,
+    enabled: agent.status === 'running',
+    totalSignals: 0,
+    avgConfidence: 0,
+    recentSignals: [],
+    source: 'paperclip', // Mark as from Paperclip
+  }));
+  
+  // Combine internal agents with Paperclip agents
+  const allAgents = [...data.agents, ...transformedPaperclipAgents];
+  
+  // Calculate summary including Paperclip agents
+  const activeAgents = allAgents.filter(a => a.status === 'running' || (a.lastRun && Date.now() - a.lastRun < 3600000));
+  const totalSignalsToday = allAgents.reduce((sum, a) => sum + (a.signalsGenerated || 0), 0);
+  const agentsWithSignals = allAgents.filter(a => (a.totalSignals || 0) > 0);
+  const avgConfidence = agentsWithSignals.length > 0 
+    ? agentsWithSignals.reduce((sum, a) => sum + (a.avgConfidence || 0), 0) / agentsWithSignals.length 
+    : 0;
+  
   res.json({
-    agents: data.agents,
+    agents: allAgents,
     strategies: data.strategies,
-    summary: data.summary,
+    summary: {
+      totalAgents: allAgents.length,
+      activeAgents: activeAgents.length,
+      totalSignalsToday,
+      avgConfidence: Math.round(avgConfidence * 100) / 100,
+    },
+    paperclip: {
+      configured: paperclipClient.isConfigured(),
+      count: paperclipAgents.length,
+    },
     timestamp: Date.now(),
   });
 });
@@ -262,7 +328,8 @@ app.get('/api/performance/history', (_req: Request, res: Response) => {
 import * as fs from 'fs';
 import * as path from 'path';
 
-app.get('/dashboard', (_req: Request, res: Response) => {
+// Helper to serve dashboard HTML
+function serveDashboard(reqPath: string, _req: Request, res: Response) {
   const htmlPath = path.join(__dirname, 'dashboard', 'index.html');
   try {
     const html = fs.readFileSync(htmlPath, 'utf-8');
@@ -271,7 +338,12 @@ app.get('/dashboard', (_req: Request, res: Response) => {
     logger.error('Failed to read dashboard HTML:', err);
     res.status(500).send('Dashboard not found');
   }
-});
+}
+
+// Mount dashboard at both /dashboard and /trading for subdirectory hosting
+app.get('/dashboard', (req, res) => serveDashboard('/dashboard', req, res));
+app.get('/trading', (req, res) => serveDashboard('/trading', req, res));
+app.get('/trading/dashboard', (req, res) => serveDashboard('/trading/dashboard', req, res));
 
 /*
 // Original inline HTML (kept for reference)

@@ -6,8 +6,13 @@ import { BaseAgent } from './BaseAgent';
 import { Signal, MarketData, Portfolio, AgentConfig } from '../types';
 export declare class MomentumAgent extends BaseAgent {
     private priceHistory;
-    private tradeLog;
+    private initialized;
     constructor(config: AgentConfig);
+    /**
+     * Initialize with seed historical data for demo
+     */
+    private initializeSeedData;
+    private tradeLog;
     /**
      * Update price history for an asset
      */

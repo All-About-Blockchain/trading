@@ -31,7 +31,7 @@ class MomentumIndicators {
    * Calculate RSI
    */
   static rsi(prices: number[], period: number = 14): number {
-    if (prices.length < period + 1) return 50;
+    if (!prices || prices.length < period + 1) return 50;
     
     let gains = 0;
     let losses = 0;
@@ -73,25 +73,25 @@ class MomentumIndicators {
    */
   static trend(prices: number[]): { direction: 'up' | 'down' | 'sideways'; strength: number } {
     if (prices.length < 10) return { direction: 'sideways', strength: 0 };
-    
+
     // Simple linear regression
     const n = prices.length;
     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-    
+
     for (let i = 0; i < n; i++) {
       sumX += i;
       sumY += prices[i];
       sumXY += i * prices[i];
       sumX2 += i * i;
     }
-    
+
     const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
     const avgPrice = sumY / n;
     const normalizedSlope = (slope / avgPrice) * 100;
-    
+
     let direction: 'up' | 'down' | 'sideways';
     let strength: number;
-    
+
     if (normalizedSlope > 0.5) {
       direction = 'up';
       strength = Math.min(100, normalizedSlope * 20);
@@ -102,7 +102,7 @@ class MomentumIndicators {
       direction = 'sideways';
       strength = 50;
     }
-    
+
     return { direction, strength };
   }
 
@@ -114,13 +114,49 @@ class MomentumIndicators {
     const momentum = this.momentum(prices);
     const roc = this.roc(prices);
     const { direction, strength } = this.trend(prices);
-    
+
     return { rsi, momentum, roc, trend: direction, strength };
   }
 }
 
 export class MomentumAgent extends BaseAgent {
   private priceHistory: Map<string, PriceHistory> = new Map();
+  private initialized: boolean = false;
+
+  constructor(config: AgentConfig) {
+    super(config);
+  }
+
+  /**
+   * Initialize with seed historical data for demo
+   */
+  private initializeSeedData(): void {
+    if (this.initialized) return;
+
+    // Seed with sample data for major assets
+    const seedAssets = {
+      'BTC': [66500, 66800, 67100, 66900, 67200, 67500, 67100, 66800, 67000, 67300, 67197],
+      'ETH': [2050, 2060, 2080, 2070, 2090, 2100, 2085, 2070, 2088, 2095, 2088.45],
+      'SOL': [85, 86, 87.5, 86.5, 88, 89, 87, 85.5, 87, 88, 87.677],
+      'AVAX': [8.9, 9.0, 9.1, 8.95, 9.05, 9.15, 9.0, 8.85, 9.0, 9.1, 9.0669],
+      'ARB': [0.091, 0.092, 0.093, 0.092, 0.094, 0.095, 0.093, 0.091, 0.092, 0.093, 0.09297],
+    };
+
+    for (const [asset, prices] of Object.entries(seedAssets)) {
+      const history: PriceHistory = {
+        prices: prices,
+        highs: prices.map(p => p * 1.002),
+        lows: prices.map(p => p * 0.998),
+        volumes: prices.map(() => 1000000),
+        timestamps: prices.map((_, i) => Date.now() - (prices.length - i) * 60000),
+      };
+      this.priceHistory.set(asset, history);
+    }
+
+    this.initialized = true;
+    logger.info('Momentum agent initialized with seed data');
+  }
+
   private tradeLog: Array<{
     timestamp: number;
     asset: string;
@@ -129,10 +165,6 @@ export class MomentumAgent extends BaseAgent {
     pnl?: number;
   }> = [];
   
-  constructor(config: AgentConfig) {
-    super(config);
-  }
-
   /**
    * Update price history for an asset
    */
@@ -141,13 +173,13 @@ export class MomentumAgent extends BaseAgent {
     if (!history) {
       history = { prices: [], highs: [], lows: [], volumes: [], timestamps: [] };
     }
-    
+
     history.prices.push(data.last);
     history.highs.push(data.ask); // Using ask as proxy for high
     history.lows.push(data.bid);  // Using bid as proxy for low
     history.volumes.push(data.volume24h);
     history.timestamps.push(data.timestamp);
-    
+
     // Keep only last 100 data points
     if (history.prices.length > 100) {
       history.prices = history.prices.slice(-100);
@@ -156,7 +188,7 @@ export class MomentumAgent extends BaseAgent {
       history.volumes = history.volumes.slice(-100);
       history.timestamps = history.timestamps.slice(-100);
     }
-    
+
     this.priceHistory.set(asset, history);
   }
 
@@ -175,28 +207,33 @@ export class MomentumAgent extends BaseAgent {
     marketData: Map<string, MarketData>,
     portfolio: Portfolio
   ): Promise<Signal[]> {
+    // Initialize seed data on first run
+    this.initializeSeedData();
+
     const signals: Signal[] = [];
-    
-    // Focus on major assets
-    const assets = ['BTC', 'ETH', 'SOL', 'AVAX', 'ARB', 'MATIC', 'LINK'];
-    
+
+    // Use assets from marketData
+    const assets = Array.from(marketData.keys());
+
     for (const asset of assets) {
       const data = marketData.get(asset);
       if (!data) continue;
-      
+
       // Update price history
       this.updateHistory(asset, data);
-      
+
       const history = this.priceHistory.get(asset);
-      if (!history || history.prices.length < 20) {
+      if (!history || history.prices.length < 5) {
         logger.debug(`Insufficient history for ${asset}`);
         continue;
       }
-      
+
       // Calculate momentum indicators
       const indicators = MomentumIndicators.calculate(history.prices);
-      
+
       // Generate signal
+      logger.info(`Momentum agent: ${asset} indicators - RSI:${indicators.rsi.toFixed(1)}, ROC:${indicators.roc.toFixed(1)}%, trend:${indicators.trend}`);
+
       const signal = this.generateMomentumSignal(
         asset,
         data,
@@ -204,12 +241,12 @@ export class MomentumAgent extends BaseAgent {
         indicators,
         this.getPosition(portfolio, asset)
       );
-      
+
       if (signal) {
         signals.push(signal);
       }
     }
-    
+
     return signals;
   }
 
@@ -225,7 +262,7 @@ export class MomentumAgent extends BaseAgent {
   ): Signal | null {
     let score = 0;
     const reasons: string[] = [];
-    
+
     // RSI signals (mean reversion)
     if (indicators.rsi < 30) {
       score += 2;
@@ -240,22 +277,22 @@ export class MomentumAgent extends BaseAgent {
       score -= 1;
       reasons.push(`RSI bullish (${indicators.rsi.toFixed(1)})`);
     }
-    
-    // Rate of change
-    if (indicators.roc > 5) {
+
+    // Rate of change - more sensitive for demo
+    if (indicators.roc > 3) {
       score += 2;
       reasons.push(`Strong ROC +${indicators.roc.toFixed(1)}%`);
-    } else if (indicators.roc < -5) {
+    } else if (indicators.roc < -3) {
       score -= 2;
       reasons.push(`Strong ROC ${indicators.roc.toFixed(1)}%`);
-    } else if (indicators.roc > 2) {
+    } else if (indicators.roc > 1.5) {
       score += 1;
       reasons.push(`Positive ROC +${indicators.roc.toFixed(1)}%`);
-    } else if (indicators.roc < -2) {
+    } else if (indicators.roc < -1.5) {
       score -= 1;
       reasons.push(`Negative ROC ${indicators.roc.toFixed(1)}%`);
     }
-    
+
     // Trend alignment
     if (indicators.trend === 'up' && indicators.strength > 60) {
       score += 2;
@@ -264,7 +301,7 @@ export class MomentumAgent extends BaseAgent {
       score -= 2;
       reasons.push(`Strong downtrend (${indicators.strength.toFixed(0)})`);
     }
-    
+
     // Volume confirmation
     const history = this.priceHistory.get(asset);
     if (!history) return null;
@@ -278,11 +315,11 @@ export class MomentumAgent extends BaseAgent {
         reasons.push('High volume confirming bearish');
       }
     }
-    
+
     // Determine action
     let action: 'buy' | 'sell' | 'hold' = 'hold';
     let confidence = 0;
-    
+
     if (score >= 3 && currentPosition === 0) {
       action = 'buy';
       confidence = Math.min(0.85, 0.5 + (score / 10));
@@ -300,15 +337,15 @@ export class MomentumAgent extends BaseAgent {
       confidence = 0.55;
       reasons.push('WEAK SELL signal');
     }
-    
+
     if (action === 'hold' || confidence < 0.55) {
       return null;
     }
-    
+
     // Calculate position size based on confidence and risk
     const baseSize = portfolio.availableUsd * 0.08; // 8% of available
     const adjustedSize = baseSize * confidence;
-    
+
     return {
       asset,
       strategy: 'momentum',
@@ -333,7 +370,7 @@ export class MomentumAgent extends BaseAgent {
       action,
       price,
     });
-    
+
     // Keep last 1000 trades
     if (this.tradeLog.length > 1000) {
       this.tradeLog = this.tradeLog.slice(-1000);
@@ -352,7 +389,7 @@ export class MomentumAgent extends BaseAgent {
     const totalTrades = this.tradeLog.length;
     const buyTrades = this.tradeLog.filter(t => t.action === 'buy').length;
     const sellTrades = this.tradeLog.filter(t => t.action === 'sell').length;
-    
+
     // Calculate win rate (simplified - would need actual PnL)
     let wins = 0;
     for (let i = 1; i < this.tradeLog.length; i++) {
@@ -362,9 +399,9 @@ export class MomentumAgent extends BaseAgent {
         }
       }
     }
-    
+
     const winRate = sellTrades > 0 ? wins / sellTrades * 100 : 0;
-    
+
     return { totalTrades, buyTrades, sellTrades, winRate };
   }
 }

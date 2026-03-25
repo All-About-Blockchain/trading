@@ -14,7 +14,7 @@
 import { HyperliquidClient } from '../utils/hyperliquid';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { Signal, MarketData, Portfolio } from '../types';
+import { Signal, MarketData, Portfolio, AgentConfig } from '../types';
 import { BaseAgent } from './BaseAgent';
 
 interface MeanReversionParams {
@@ -30,18 +30,18 @@ export class MeanReversionAgent extends BaseAgent {
   private assetHistories: Map<string, number[]> = new Map();
 
   constructor(
-    name: string = 'MeanReversion',
+    config: AgentConfig,
     params: Partial<MeanReversionParams> = {}
   ) {
     super({
-      id: `mean-reversion-${Date.now()}`,
-      name,
-      enabled: true,
-      model: 'gpt',
-      specialty: 'mean-reversion',
-      maxPositionPercent: 0.1,
+      id: config.id,
+      name: config.name,
+      enabled: config.enabled,
+      model: 'mean-reversion',
+      specialty: config.specialty,
+      maxPositionPercent: config.maxPositionPercent,
     });
-    this.name = name;
+    this.name = config.name;
     this.params = {
       lookbackPeriod: params.lookbackPeriod || 20,
       entryThreshold: params.entryThreshold || 2,

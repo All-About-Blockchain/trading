@@ -11,6 +11,7 @@ import { MiniMaxAgent } from './MiniMaxAgent';
 import { EnsembleAgent } from './EnsembleAgent';
 import { MLAgent } from './MLAgent';
 import { MomentumAgent } from './MomentumAgent';
+import { MeanReversionAgent } from './MeanReversionAgent';
 import { logger } from '../utils/logger';
 
 // Default agent configurations
@@ -55,6 +56,22 @@ const DEFAULT_AGENT_CONFIGS: AgentConfig[] = [
     specialty: 'Technical Analysis & ML Signals',
     maxPositionPercent: 0.10,
   },
+  {
+    id: 'zeta-momentum',
+    name: 'Zeta-Momentum',
+    model: 'minimax',
+    enabled: true,
+    specialty: 'Pure Momentum Trading',
+    maxPositionPercent: 0.12,
+  },
+  {
+    id: 'eta-mean-reversion',
+    name: 'Eta-MeanReversion',
+    model: 'mean-reversion',
+    enabled: true,
+    specialty: 'Mean Reversion Trading',
+    maxPositionPercent: 0.10,
+  },
 ];
 
 export class AgentFactory {
@@ -89,13 +106,18 @@ export class AgentFactory {
       case 'gemini':
         return new GeminiAgent(config);
       case 'minimax':
-        // Use ML agent for epsilon-ml, MiniMax for others
+        // Use ML agent for epsilon-ml, Momentum for zeta-momentum, MiniMax for others
         if (config.id === 'epsilon-ml') {
           return new MLAgent(config);
+        }
+        if (config.id === 'zeta-momentum') {
+          return new MomentumAgent(config);
         }
         return new MiniMaxAgent(config);
       case 'ensemble':
         return this.ensembleAgent;
+      case 'mean-reversion':
+        return new MeanReversionAgent(config);
       default:
         throw new Error(`Unknown model type: ${config.model}`);
     }

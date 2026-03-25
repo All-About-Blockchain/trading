@@ -58,7 +58,7 @@ export interface Signal {
     price?: number;
     reasoning?: string;
     reason?: string;
-    modelSource?: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
+    modelSource?: 'gpt' | 'gemini' | 'minimax' | 'ensemble' | 'mean-reversion';
     timestamp?: number;
 }
 export interface Portfolio {
@@ -98,7 +98,7 @@ export interface AssetInfo {
 export interface AgentConfig {
     id: string;
     name: string;
-    model: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
+    model: 'gpt' | 'gemini' | 'minimax' | 'ensemble' | 'mean-reversion';
     enabled: boolean;
     specialty: string;
     maxPositionPercent: number;

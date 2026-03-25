@@ -12,9 +12,10 @@ class EnsembleAgent extends BaseAgent_1.BaseAgent {
         super(...arguments);
         this.agentResults = new Map();
         this.modelWeights = {
-            gpt: 0.35,
-            gemini: 0.35,
-            minimax: 0.30,
+            gpt: 0.30,
+            gemini: 0.30,
+            minimax: 0.25,
+            'mean-reversion': 0.15,
             ensemble: 0.0,
         };
     }

@@ -17,17 +17,17 @@ const config_1 = require("../config");
 const logger_1 = require("../utils/logger");
 const BaseAgent_1 = require("./BaseAgent");
 class MeanReversionAgent extends BaseAgent_1.BaseAgent {
-    constructor(name = 'MeanReversion', params = {}) {
+    constructor(config, params = {}) {
         super({
-            id: `mean-reversion-${Date.now()}`,
-            name,
-            enabled: true,
-            model: 'gpt',
-            specialty: 'mean-reversion',
-            maxPositionPercent: 0.1,
+            id: config.id,
+            name: config.name,
+            enabled: config.enabled,
+            model: 'mean-reversion',
+            specialty: config.specialty,
+            maxPositionPercent: config.maxPositionPercent,
         });
         this.assetHistories = new Map();
-        this.name = name;
+        this.name = config.name;
         this.params = {
             lookbackPeriod: params.lookbackPeriod || 20,
             entryThreshold: params.entryThreshold || 2,

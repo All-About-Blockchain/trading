@@ -10,7 +10,7 @@
  * - exitThreshold: Standard deviations above MA to exit (default: 0.5)
  * - holdingPeriod: Max periods to hold position (default: 10)
  */
-import { Signal, MarketData, Portfolio } from '../types';
+import { Signal, MarketData, Portfolio, AgentConfig } from '../types';
 import { BaseAgent } from './BaseAgent';
 interface MeanReversionParams {
     lookbackPeriod: number;
@@ -22,7 +22,7 @@ export declare class MeanReversionAgent extends BaseAgent {
     readonly name: string;
     private params;
     private assetHistories;
-    constructor(name?: string, params?: Partial<MeanReversionParams>);
+    constructor(config: AgentConfig, params?: Partial<MeanReversionParams>);
     /**
      * Analyze market and generate trading signals
      */

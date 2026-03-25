@@ -64,7 +64,7 @@ export interface Signal {
   price?: number; // Current asset price
   reasoning?: string;
   reason?: string; // Alias for reasoning (used in some agents)
-  modelSource?: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
+  modelSource?: 'gpt' | 'gemini' | 'minimax' | 'ensemble' | 'mean-reversion';
   timestamp?: number;
 }
 
@@ -110,7 +110,7 @@ export interface AssetInfo {
 export interface AgentConfig {
   id: string;
   name: string;
-  model: 'gpt' | 'gemini' | 'minimax' | 'ensemble';
+  model: 'gpt' | 'gemini' | 'minimax' | 'ensemble' | 'mean-reversion';
   enabled: boolean;
   specialty: string;
   maxPositionPercent: number;
